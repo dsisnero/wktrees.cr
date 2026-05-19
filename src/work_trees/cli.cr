@@ -1399,6 +1399,8 @@ module WorkTrees
       when :bash then File.join(home, ".bashrc")
       when :zsh  then File.join(home, ".zshrc")
       when :fish then File.join(home, ".config", "fish", "config.fish")
+      when :nu   then File.join(home, ".config", "nushell", "config.nu")
+      when :ps   then File.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
       else            File.join(home, ".bashrc")
       end
     end
@@ -1437,7 +1439,7 @@ module WorkTrees
       <<-ZSH
       #compdef work_trees
       local -a step_subs
-      step_subs=(commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether)
+      step_subs=(commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline)
       _work_trees() {
           _arguments \\
               '1:command:(list switch remove step merge hook config shell help)' \\
@@ -1460,7 +1462,7 @@ module WorkTrees
       <<-FISH
       complete -c work_trees -f
       complete -c work_trees -a "list switch remove step merge hook config shell help"
-      set -l step_subs commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether
+      set -l step_subs commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline
       complete -c work_trees -n "__fish_seen_subcommand_from step" -a "$step_subs"
       FISH
     end
