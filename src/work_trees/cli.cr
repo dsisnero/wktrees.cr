@@ -159,6 +159,12 @@ module WorkTrees
                  else
                    current_branch
                  end
+
+      # Save current branch as previous (for - shortcut)
+      if resolved != current_branch
+        Git::BranchResolver.save_previous(current_branch)
+      end
+
       worktree_path : String? = nil
 
       if create
@@ -368,8 +374,14 @@ module WorkTrees
         step_commit(args[1..])
       when "diff"
         step_diff
+      when "squash"
+        step_squash
+      when "rebase"
+        step_rebase(args[1..])
+      when "push"
+        step_push(args[1..])
       else
-        STDERR.puts "Usage: work_trees step [commit|diff]"
+        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push]"
         exit 1
       end
     end
@@ -422,6 +434,92 @@ module WorkTrees
       repo = Git::Repository.current
       result = Cmd.new("git").args(["diff", "--stat"]).current_dir(repo.discovery_path).run
       puts result.stdout
+    end
+
+    private def self.step_squash
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      default = repo.default_branch
+
+      # Find the merge-base with default branch
+      merge_base = repo.run_command(["merge-base", branch, default]).strip
+
+      if merge_base.empty?
+        STDERR.puts "Error: No common ancestor with #{default}"
+        exit 1
+      end
+
+      # Count commits since branching
+      count_output = repo.run_command(["rev-list", "--count", "#{merge_base}..#{branch}"])
+      count = count_output.strip.to_i
+
+      if count <= 1
+        puts "Nothing to squash (1 commit since branching)."
+        return
+      end
+
+      puts "◎ Squashing #{count} commits into one..."
+      repo.run_command(["reset", "--soft", merge_base])
+      puts "✓ Squashed #{count} commits. Ready to commit."
+    end
+
+    private def self.step_rebase(args : Array(String))
+      target : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step rebase [target]"
+        parser.unknown_args do |before, _after|
+          target = before[0]? if before.size > 0
+        end
+      end
+
+      repo = Git::Repository.current
+      target_branch = if t = target
+                        t
+                      else
+                        repo.default_branch
+                      end
+
+      puts "◎ Rebasing onto #{target_branch}..."
+      begin
+        repo.run_command(["rebase", target_branch])
+        puts "✓ Rebased onto #{target_branch}"
+      rescue ex : Git::CommandError
+        STDERR.puts "✗ Rebase conflict: #{ex.message}"
+        STDERR.puts "Resolve conflicts and run: git rebase --continue"
+        exit 1
+      end
+    end
+
+    private def self.step_push(args : Array(String))
+      target : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step push [target]"
+        parser.unknown_args do |before, _after|
+          target = before[0]? if before.size > 0
+        end
+      end
+
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      target_branch = if t = target
+                        t
+                      else
+                        repo.default_branch
+                      end
+
+      # Checkout target and fast-forward merge from current branch
+      target_path = repo.worktree_for_branch(target_branch)
+      unless target_path
+        STDERR.puts "Error: No worktree for #{target_branch}"
+        exit 1
+      end
+
+      puts "◎ Pushing #{branch} → #{target_branch} (fast-forward)..."
+      Cmd.new("git").args(["checkout", target_branch]).current_dir(target_path).run!
+      Cmd.new("git").args(["merge", "--ff-only", branch]).current_dir(target_path).run!
+      puts "✓ Fast-forwarded #{target_branch} to #{branch}"
     end
 
     private def self.generate_commit_message(repo) : String
