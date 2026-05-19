@@ -1024,6 +1024,8 @@ module WorkTrees
         config_show
       when "create"
         config_create(project)
+      when "state"
+        config_state(args[1..])
       else
         config_show
       end
@@ -1062,6 +1064,90 @@ module WorkTrees
       toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
       File.write(config_path, toml_content)
       puts "✓ Created #{project ? "project " : ""}config at #{config_path}"
+    end
+
+    private def self.config_state(args : Array(String))
+      sub = args[0]?
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees config state vars [set|get|list|clear]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      case sub
+      when "vars"
+        state_vars(args[1..])
+      else
+        STDERR.puts "Usage: work_trees config state vars [set|get|list|clear]"
+        exit 1
+      end
+    end
+
+    private def self.state_vars(args : Array(String))
+      action = args[0]?
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      prefix = "worktrees.state.#{branch}.vars"
+
+      case action
+      when "set"
+        key = args[1]?
+        value = args[2]?
+        unless key && value
+          STDERR.puts "Usage: work_trees config state vars set <key> <value>"
+          exit 1
+        end
+        repo.run_command(["config", "--local", "#{prefix}.#{key}", value])
+        puts "✓ Set #{key}=#{value} for #{branch}"
+      when "get"
+        key = args[1]?
+        unless key
+          STDERR.puts "Usage: work_trees config state vars get <key>"
+          exit 1
+        end
+        result = Cmd.new("git")
+          .args(["config", "--local", "#{prefix}.#{key}"])
+          .run
+        if result.success?
+          puts result.stdout.strip
+        else
+          puts "(unset)"
+        end
+      when "list"
+        result = Cmd.new("git")
+          .args(["config", "--local", "--get-regexp", "^#{prefix}\\."])
+          .run
+        if result.success? && !result.stdout.strip.empty?
+          result.stdout.each_line do |line|
+            k, v = line.split(' ', 2).map(&.strip)
+            # Strip prefix to show clean key
+            short_key = k.lchop("#{prefix}.")
+            puts "  #{short_key} = #{v}"
+          end
+        else
+          puts "No state variables for #{branch}"
+        end
+      when "clear"
+        result = Cmd.new("git")
+          .args(["config", "--local", "--get-regexp", "^#{prefix}\\."])
+          .run
+        if result.success?
+          # Remove each key
+          result.stdout.each_line do |line|
+            key = line.split(' ', 2).first
+            Cmd.new("git").args(["config", "--local", "--unset", key]).run
+          end
+          puts "✓ Cleared state variables for #{branch}"
+        else
+          puts "No state variables to clear for #{branch}"
+        end
+      else
+        STDERR.puts "Usage: work_trees config state vars [set|get|list|clear]"
+        exit 1
+      end
     end
 
     private def self.shell_install
