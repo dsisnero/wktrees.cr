@@ -103,9 +103,13 @@ module WorkTrees
 
       log_result(cmd_str, result)
       result
-    rescue ex : IO::Error
+    rescue ex : IO::Error | File::NotFoundError
       log_error(command_string, ex)
-      raise ex
+      CmdResult.new(
+        status: Process::Status.new(127),
+        stdout: "",
+        stderr: ex.message || "command not found"
+      )
     end
 
     # Execute and raise if the command fails.

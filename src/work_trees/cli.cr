@@ -3,6 +3,7 @@
 # Uses Crystal's built-in OptionParser from stdlib.
 
 require "option_parser"
+require "json"
 
 module WorkTrees
   module CLI
@@ -65,10 +66,12 @@ module WorkTrees
   module Commands
     def self.list(args : Array(String))
       full = false
+      format = "table"
 
       OptionParser.parse(args) do |parser|
         parser.banner = "Usage: work_trees list [options]"
         parser.on("-f", "--full", "Show full details") { full = true }
+        parser.on("--format=FORMAT", "Output format: table or json") { |fmt| format = fmt }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -86,10 +89,17 @@ module WorkTrees
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
 
-      if full
+      case format
+      when "json"
+        list_json(worktrees, current_branch)
+      when "full"
         list_full(worktrees, current_branch)
       else
-        list_compact(worktrees, current_branch)
+        if full
+          list_full(worktrees, current_branch)
+        else
+          list_compact(worktrees, current_branch)
+        end
       end
     end
 
@@ -108,6 +118,21 @@ module WorkTrees
 
       puts ""
       puts "○ Showing #{worktrees.size} worktree(s)"
+    end
+
+    private def self.list_json(worktrees, current_branch)
+      items = worktrees.map do |worktree|
+        {
+          "branch"   => worktree.branch,
+          "path"     => worktree.path,
+          "head"     => worktree.head,
+          "current"  => worktree.branch == current_branch,
+          "bare"     => worktree.bare?,
+          "detached" => worktree.detached?,
+        }
+      end
+
+      puts items.to_pretty_json
     end
 
     private def self.list_full(worktrees, current_branch)
