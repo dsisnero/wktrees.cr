@@ -525,8 +525,12 @@ module WorkTrees
         step_push(args[1..])
       when "for-each"
         step_for_each(args[1..])
+      when "eval"
+        step_eval(args[1..])
+      when "prune"
+        step_prune
       else
-        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each]"
+        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune]"
         exit 1
       end
     end
@@ -717,6 +721,76 @@ module WorkTrees
 
       puts ""
       puts "○ Done."
+    end
+
+    private def self.step_eval(args : Array(String))
+      template = args.join(" ")
+
+      if template.strip.empty?
+        STDERR.puts "Usage: work_trees step eval <template>"
+        STDERR.puts "  Evaluates a template expression with available variables."
+        STDERR.puts "  Example: work_trees step eval '{{ branch | sanitize }}'"
+        exit 1
+      end
+
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      worktree_path = repo.current_worktree.path
+
+      vars = {
+        "branch"         => branch,
+        "worktree_path"  => worktree_path,
+        "worktree_name"  => File.basename(worktree_path),
+        "repo"           => File.basename(repo.discovery_path),
+        "repo_path"      => repo.discovery_path,
+        "default_branch" => repo.default_branch,
+        "commit"         => repo.current_worktree.head_sha,
+        "short_commit"   => repo.current_worktree.head_sha[0, 7],
+      }
+
+      result = Template.expand(template, vars)
+      puts result
+    end
+
+    private def self.step_prune
+      repo = Git::Repository.current
+      default_branch = repo.default_branch
+      worktrees = repo.list_worktrees
+      current_wt = repo.current_worktree
+      current_branch = current_wt.current_branch
+
+      removed = 0
+      skipped = 0
+
+      puts "◎ Checking for merged worktrees to prune..."
+      puts ""
+
+      worktrees.each do |worktree|
+        branch = worktree.branch
+        next unless branch
+        next if branch == default_branch
+        next if branch == current_branch
+
+        # Check if branch is merged (ancestor of default)
+        if repo.run_command_check(["merge-base", "--is-ancestor", branch, default_branch])
+          puts "  Pruning #{branch} (merged into #{default_branch})..."
+          begin
+            repo.remove_worktree(worktree.path)
+            repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
+            puts "  ✓ Pruned #{branch}"
+            removed += 1
+          rescue ex : Git::CommandError
+            puts "  ! Could not prune #{branch}: #{ex.message}"
+            skipped += 1
+          end
+        end
+      end
+
+      # Also run git worktree prune to clean up stale entries
+      repo.prune_worktrees
+
+      puts ""
+      puts "○ Pruned #{removed} worktree(s), skipped #{skipped}"
     end
 
     private def self.generate_commit_message(repo) : String
