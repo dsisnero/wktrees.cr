@@ -9,6 +9,7 @@ require "./work_trees/cmd"
 require "./work_trees/git/error"
 require "./work_trees/git/repository"
 require "./work_trees/git/worktree_info"
+require "./work_trees/cli"
 
 module WorkTrees
   VERSION = "0.1.0"

@@ -27,7 +27,8 @@
 - [x] WorkingTree type (`src/work_trees/git/repository.cr`)
   - `run_command`, `head_sha`, `current_branch`, `worktree_name`
 - [x] `Cmd` builder (`src/work_trees/cmd.cr`, 7 specs)
-- [ ] Worktree list parsing (`git worktree list --porcelain`)
+- [x] Worktree list parsing (`git worktree list --porcelain`) → `src/work_trees/git/worktree_info.cr`
+  - 10 specs, all 6 porcelain fields covered (commit a515aa1)
 - [ ] Output formatting (`src/output/`, `src/styling/`)
 - [ ] Tracing/logging infrastructure
 
