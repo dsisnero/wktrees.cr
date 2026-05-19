@@ -1336,9 +1336,21 @@ module WorkTrees
     private def self.zsh_completions : String
       <<-ZSH
       #compdef work_trees
+      local -a step_subs
+      step_subs=(commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether)
       _work_trees() {
           _arguments \\
-              '1:command:(list switch remove step merge hook config shell help)'
+              '1:command:(list switch remove step merge hook config shell help)' \\
+              '*::arg:->args'
+          case $state in
+              args)
+                  case $words[1] in
+                      step)
+                          _values 'step subcommand' $step_subs
+                          ;;
+                  esac
+                  ;;
+          esac
       }
       _work_trees
       ZSH
@@ -1348,6 +1360,8 @@ module WorkTrees
       <<-FISH
       complete -c work_trees -f
       complete -c work_trees -a "list switch remove step merge hook config shell help"
+      set -l step_subs commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether
+      complete -c work_trees -n "__fish_seen_subcommand_from step" -a "$step_subs"
       FISH
     end
 
