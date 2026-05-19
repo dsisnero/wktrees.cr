@@ -171,7 +171,20 @@ module WorkTrees
       if exec && (cmd = exec)
         target_path = worktree_path || "."
         puts "Executing: #{cmd}"
+        emit_exec_directive(cmd)
         Cmd.new("sh").args(["-c", cmd]).current_dir(target_path).run
+      end
+    end
+
+    private def self.emit_cd_directive(path : String) : Nil
+      if file = ENV["WORKTRUNK_DIRECTIVE_CD_FILE"]?
+        File.write(file, path)
+      end
+    end
+
+    private def self.emit_exec_directive(cmd : String) : Nil
+      if file = ENV["WORKTRUNK_DIRECTIVE_EXEC_FILE"]?
+        File.write(file, "#{cmd}\n", mode: "a")
       end
     end
 
@@ -210,6 +223,7 @@ module WorkTrees
       begin
         repo.run_command(["worktree", "add", "-b", branch, worktree_path, base])
         puts "✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}"
+        emit_cd_directive(worktree_path)
       rescue ex : Git::CommandError
         STDERR.puts "✗ #{ex.message}"
         exit 1
@@ -255,8 +269,10 @@ module WorkTrees
       # Pre-switch hooks
       run_hooks("pre-switch", switch_vars)
 
+      # If shell integration is active, emit cd directive
+      emit_cd_directive(wt_path)
+
       puts "Switching to worktree for #{target} @ #{wt_path}"
-      puts "(cd #{wt_path} to switch manually — shell integration coming soon)"
 
       # Post-switch hooks
       run_hooks("post-switch", switch_vars)
@@ -535,8 +551,10 @@ module WorkTrees
                      else             :bash
                      end
         puts Shell.generate(shell_type)
+      when "install"
+        shell_install
       else
-        STDERR.puts "Usage: work_trees shell init [bash|zsh|fish]"
+        STDERR.puts "Usage: work_trees shell [init|install] [bash|zsh|fish]"
         exit 1
       end
     end
@@ -589,6 +607,45 @@ module WorkTrees
       toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
       File.write(config_path, toml_content)
       puts "✓ Created config at #{config_path}"
+    end
+
+    private def self.shell_install
+      # Detect shell from SHELL env var
+      shell_path = ENV["SHELL"]? || "/bin/bash"
+      shell_type = if shell_path.includes?("zsh")
+                     :zsh
+                   elsif shell_path.includes?("fish")
+                     :fish
+                   else
+                     :bash
+                   end
+
+      # Determine rc file
+      home = ENV["HOME"]? || "."
+      rc_file = case shell_type
+                when :bash then File.join(home, ".bashrc")
+                when :zsh  then File.join(home, ".zshrc")
+                when :fish then File.join(home, ".config", "fish", "config.fish")
+                else            File.join(home, ".bashrc")
+                end
+
+      # Check if already installed
+      if File.exists?(rc_file) && File.read(rc_file).includes?("work_trees shell init")
+        puts "Shell integration already installed in #{rc_file}"
+        return
+      end
+
+      # Generate wrapper and append to rc file
+      line = "eval \"$(work_trees shell init #{shell_type})\""
+
+      File.open(rc_file, mode: "a") do |file|
+        file.puts ""
+        file.puts "# WorkTrees shell integration"
+        file.puts line
+      end
+
+      puts "✓ Installed WorkTrees shell integration in #{rc_file}"
+      puts "  Restart your shell or run: source #{rc_file}"
     end
   end
 end
