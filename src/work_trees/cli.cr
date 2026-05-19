@@ -976,11 +976,15 @@ module WorkTrees
       sub = args[0]?
       case sub
       when "init"
-        arg = args[1]? || "bash"
-        shell_type = case arg
-                     when "zsh"  then :zsh
-                     when "fish" then :fish
-                     else             :bash
+        arg = args[1]?
+        shell_type = if arg
+                       case arg
+                       when "zsh"  then :zsh
+                       when "fish" then :fish
+                       else             :bash
+                       end
+                     else
+                       shell_type_from_env
                      end
         puts Shell.generate(shell_type)
       when "install"
@@ -1119,6 +1123,8 @@ module WorkTrees
       case sub
       when "show"
         hook_show
+      when "run"
+        hook_run(args[1..])
       else
         hook_show
       end
@@ -1170,6 +1176,45 @@ module WorkTrees
       puts "  base (switch), target (merge/remove), hook_type, hook_name"
       puts ""
       puts "Current: branch=#{branch}"
+    end
+
+    private def self.hook_run(args : Array(String))
+      hook_type = args[0]?
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees hook run <type>"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          puts ""
+          puts "Hook types: pre-start, post-start, pre-switch, post-switch,"
+          puts "  pre-commit, post-commit, pre-merge, post-merge,"
+          puts "  pre-remove, post-remove"
+          exit 0
+        end
+      end
+
+      unless hook_type
+        STDERR.puts "Error: No hook type specified."
+        STDERR.puts "Usage: work_trees hook run <type>"
+        STDERR.puts ""
+        STDERR.puts "Hook types: pre-start, post-start, pre-switch, post-switch,"
+        STDERR.puts "  pre-commit, post-commit, pre-merge, post-merge,"
+        STDERR.puts "  pre-remove, post-remove"
+        exit 1
+      end
+
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      vars = {
+        "branch"         => branch,
+        "worktree_path"  => repo.current_worktree.path,
+        "repo"           => File.basename(repo.discovery_path),
+        "default_branch" => repo.default_branch,
+      }
+
+      puts "◎ Running #{hook_type} hooks..."
+      run_hooks(hook_type, vars)
+      puts "✓ Done."
     end
 
     private def self.step_copy_ignored(args : Array(String))
