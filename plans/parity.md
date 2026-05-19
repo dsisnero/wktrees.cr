@@ -78,14 +78,15 @@
 - [ ] Tests: `tests/switch.rs`, `tests/switch_interactive.rs`
 
 ### 1.2 `wt list`
-- [ ] CLI args (`ListArgs`: --full, --branches, --remotes, --format)
-- [ ] Table rendering (columns: Branch, Status, HEAD±, main↕, Remote⇅, Commit, Age, Message)
+- [x] Basic list command (`work_trees list`)
+  - Table rendering: Branch, Worktree, HEAD columns
+  - `--full/-f` flag for detailed view
+  - Current worktree marker (@)
+  - Uses OptionParser for argument parsing
+- [ ] Full mode: CI status, diff stats, remote tracking
 - [ ] JSON output format
-- [ ] Progressive rendering (fast data first, slow data updates)
-- [ ] CI status integration (GitHub, GitLab, Gitea, Azure)
-- [ ] LLM branch summaries
-- [ ] Statusline subcommand (PS1 prompt)
-- [ ] Tests: `tests/list.rs`, `tests/branches.rs`, `tests/remotes.rs`
+- [ ] Progressive rendering
+- [ ] Statusline subcommand
 
 ### 1.3 `wt remove`
 - [ ] CLI args (`RemoveArgs`: --force, --force-delete, --foreground, --no-delete-branch, --no-hooks)
