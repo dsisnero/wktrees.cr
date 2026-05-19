@@ -630,6 +630,7 @@ module WorkTrees
       when "promote"      then step_promote(sub_args)
       when "relocate"     then step_relocate
       when "tether"       then step_tether(sub_args)
+      when "statusline"   then step_statusline
       else
         STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether]"
         exit 1
@@ -1651,6 +1652,26 @@ module WorkTrees
       process.wait
       puts ""
       puts "○ Tethered process exited."
+    end
+
+    private def self.step_statusline
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      dirty = Cmd.new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(repo.current_worktree.path)
+        .run
+        .stdout
+
+      status = dirty.empty? ? "" : "+"
+      default = repo.default_branch
+      ahead = count_commits_ahead(default, branch) if branch != default
+      ahead_str = ahead && ahead > 0 ? "↑#{ahead}" : ""
+
+      print "[#{branch}"
+      print status unless status.empty?
+      print ahead_str unless ahead_str.empty?
+      puts "]"
     end
   end
 end
