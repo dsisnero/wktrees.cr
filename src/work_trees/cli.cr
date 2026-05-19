@@ -28,6 +28,8 @@ module WorkTrees
         Commands.config(command_args)
       when "step"
         Commands.step(command_args)
+      when "merge"
+        Commands.merge(command_args)
       when "help", "--help", "-h"
         print_help
         exit 0
@@ -53,6 +55,7 @@ module WorkTrees
           shell    Generate shell integration wrapper
           config   Show or create configuration
           step     Run individual operations (commit, diff)
+          merge    Merge current branch into target
           help     Show this help
 
       OPTIONS:
@@ -375,6 +378,11 @@ module WorkTrees
       end
 
       repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      commit_vars = {"branch" => branch}
+
+      # Pre-commit hooks
+      run_hooks("pre-commit", commit_vars)
 
       # Stage changes
       stage_args = all ? ["add", "-A"] : ["add", "-u"]
@@ -392,6 +400,10 @@ module WorkTrees
                      end
         repo.run_command(["commit", "-m", commit_msg])
         puts "✓ Committed: #{commit_msg.lines.first}"
+
+        # Post-commit hooks
+        commit_vars["commit"] = commit_msg
+        run_hooks("post-commit", commit_vars)
       end
     end
 
@@ -434,6 +446,59 @@ module WorkTrees
              end
 
       "#{type}: #{branch}"
+    end
+
+    def self.merge(args : Array(String))
+      target : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees merge [target]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+        parser.unknown_args do |before, _after|
+          target = before[0]? if before.size > 0
+        end
+      end
+
+      repo = Git::Repository.current
+      branch = repo.current_worktree.current_branch
+      target_branch = if t = target
+                        t
+                      else
+                        repo.default_branch
+                      end
+      merge_vars = {"branch" => branch, "target" => target_branch, "target_worktree_path" => target_branch}
+
+      # Pre-merge hooks
+      run_hooks("pre-merge", merge_vars)
+
+      puts "◎ Merging #{branch} into #{target_branch}..."
+
+      # Rebase onto target
+      begin
+        repo.run_command(["rebase", target_branch])
+      rescue ex : Git::CommandError
+        STDERR.puts "! Rebase failed: #{ex.message}"
+        STDERR.puts "Resolve conflicts and run: git rebase --continue"
+        exit 1
+      end
+
+      # Switch to target and fast-forward merge
+      target_wt_path = repo.worktree_for_branch(target_branch)
+      unless target_wt_path
+        STDERR.puts "Error: No worktree for #{target_branch}"
+        exit 1
+      end
+
+      Cmd.new("git").args(["checkout", target_branch]).current_dir(target_wt_path).run!
+      Cmd.new("git").args(["merge", "--ff-only", branch]).current_dir(target_wt_path).run!
+
+      puts "✓ Merged #{branch} into #{target_branch}"
+
+      # Post-merge hooks
+      run_hooks("post-merge", merge_vars)
     end
 
     def self.shell(args : Array(String))
