@@ -241,15 +241,14 @@ module WorkTrees
       base_branch : String? = nil
       branch : String? = nil
       execute_cmd : String? = nil
-      config = Config.load_default
-      path_template = config.worktree_path_template
+      path_template_override : String? = nil
 
       OptionParser.parse(args) do |parser|
         parser.banner = "Usage: work_trees switch [options] [branch]"
         parser.on("-c", "--create", "Create a new branch and worktree") { create = true }
         parser.on("-b BASE", "--base=BASE", "Base branch for the new worktree") { |b| base_branch = b }
         parser.on("-x CMD", "--execute=CMD", "Execute a command after switching") { |cmd| execute_cmd = cmd }
-        parser.on("-p PATH", "--path-template=PATH", "Worktree path template") { |tpl| path_template = tpl }
+        parser.on("-p PATH", "--path-template=PATH", "Worktree path template") { |tpl| path_template_override = tpl }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -263,6 +262,14 @@ module WorkTrees
       repo = Git::Repository.current
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
+
+      # Load merged config (user + project) for path template
+      merged_config = Config.load_merged(repo.discovery_path)
+      path_template = if override = path_template_override
+                        override
+                      else
+                        merged_config.worktree_path_template
+                      end
 
       # Resolve branch shortcuts
       resolved = if b = branch
@@ -634,7 +641,7 @@ module WorkTrees
     end
 
     private def self.generate_commit_message(repo) : String
-      config = Config.load_default
+      config = Config.load_merged(repo.discovery_path)
       branch = repo.current_worktree.current_branch
 
       # Try LLM generation if configured

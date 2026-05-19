@@ -1,0 +1,4 @@
+worktree-path = "~/dev/{{ branch | sanitize }}"
+
+[post-start]
+greet = "echo 'Welcome to {{ branch }} at {{ worktree_path }}'"
