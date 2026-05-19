@@ -58,10 +58,11 @@ module WorkTrees
       puts "    list     List all worktrees with branch info"
       puts "    switch   Switch to or create a worktree"
       puts "    remove   Remove a worktree and optionally its branch"
-      puts "    shell    Generate shell integration wrapper"
-      puts "    config   Show or create configuration"
-      puts "    step     Run individual operations (commit, diff)"
+      puts "    step     Run individual operations (commit, diff, squash, etc.)"
       puts "    merge    Merge current branch into target"
+      puts "    hook     Show or run configured hooks"
+      puts "    config   Show or create configuration"
+      puts "    shell    Generate or install shell integration"
       puts "    help     Show this help"
     end
   end
