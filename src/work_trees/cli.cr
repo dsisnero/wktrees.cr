@@ -144,12 +144,19 @@ module WorkTrees
       repo = Git::Repository.current
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
+
+      # Resolve branch shortcuts
+      resolved = if b = branch
+                   Git::BranchResolver.resolve(b)
+                 else
+                   current_branch
+                 end
       worktree_path : String? = nil
 
       if create
-        worktree_path = switch_create(repo, branch, base_branch, path_template)
+        worktree_path = switch_create(repo, resolved, base_branch, path_template)
       else
-        worktree_path = switch_to_existing(repo, branch, current_branch)
+        worktree_path = switch_to_existing(repo, resolved, current_branch)
       end
 
       # Execute command if requested

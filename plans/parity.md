@@ -90,12 +90,12 @@
 - [ ] Statusline subcommand
 
 ### 1.3 `wt remove`
-- [ ] CLI args (`RemoveArgs`: --force, --force-delete, --foreground, --no-delete-branch, --no-hooks)
-- [ ] Worktree removal pipeline (rename→trash→prune→delete)
-- [ ] Branch deletion (with integration check)
-- [ ] Pre/post remove hooks
+- [x] CLI args (`--force`, `--force-delete`, `--no-delete-branch`)
+- [x] Worktree removal via `git worktree remove`
+- [x] Branch deletion with integration mode (SafeDelete/ForceDelete/Keep)
+- [x] Guards: prevents removing current worktree
+- [ ] Background removal staging (trash directory rename)
 - [ ] Recovery from partial operations
-- [ ] Tests: `tests/remove.rs`
 
 ---
 

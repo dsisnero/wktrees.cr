@@ -11,6 +11,7 @@ require "./work_trees/git/error"
 require "./work_trees/git/repository"
 require "./work_trees/git/worktree_info"
 require "./work_trees/git/remove"
+require "./work_trees/git/branch_resolver"
 require "./work_trees/cli"
 
 module WorkTrees
