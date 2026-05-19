@@ -3,5 +3,4 @@
 /.shards/
 /.crystal-cache/
 *.dwarf
-work_trees
-bin/
+/work_trees
