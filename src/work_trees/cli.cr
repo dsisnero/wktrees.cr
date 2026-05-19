@@ -33,6 +33,9 @@ module WorkTrees
       when "help", "--help", "-h"
         print_help
         exit 0
+      when "--version", "-V"
+        puts "work_trees #{WorkTrees::VERSION}"
+        exit 0
       else
         STDERR.puts "Unknown command: #{command}"
         STDERR.puts "Run 'work_trees help' for usage."
@@ -818,8 +821,10 @@ module WorkTrees
         puts Shell.generate(shell_type)
       when "install"
         shell_install
+      when "uninstall"
+        shell_uninstall
       else
-        STDERR.puts "Usage: work_trees shell [init|install] [bash|zsh|fish]"
+        STDERR.puts "Usage: work_trees shell [init|install|uninstall] [bash|zsh|fish]"
         exit 1
       end
     end
@@ -875,34 +880,15 @@ module WorkTrees
     end
 
     private def self.shell_install
-      # Detect shell from SHELL env var
-      shell_path = ENV["SHELL"]? || "/bin/bash"
-      shell_type = if shell_path.includes?("zsh")
-                     :zsh
-                   elsif shell_path.includes?("fish")
-                     :fish
-                   else
-                     :bash
-                   end
+      rc_file = shell_rc_file
+      return unless rc_file
 
-      # Determine rc file
-      home = ENV["HOME"]? || "."
-      rc_file = case shell_type
-                when :bash then File.join(home, ".bashrc")
-                when :zsh  then File.join(home, ".zshrc")
-                when :fish then File.join(home, ".config", "fish", "config.fish")
-                else            File.join(home, ".bashrc")
-                end
-
-      # Check if already installed
       if File.exists?(rc_file) && File.read(rc_file).includes?("work_trees shell init")
         puts "Shell integration already installed in #{rc_file}"
         return
       end
 
-      # Generate wrapper and append to rc file
-      line = "eval \"$(work_trees shell init #{shell_type})\""
-
+      line = "eval \"$(work_trees shell init #{shell_type_from_env})\""
       File.open(rc_file, mode: "a") do |file|
         file.puts ""
         file.puts "# WorkTrees shell integration"
@@ -911,6 +897,48 @@ module WorkTrees
 
       puts "✓ Installed WorkTrees shell integration in #{rc_file}"
       puts "  Restart your shell or run: source #{rc_file}"
+    end
+
+    private def self.shell_uninstall
+      rc_file = shell_rc_file
+      return unless rc_file
+
+      unless File.exists?(rc_file)
+        puts "No shell config found at #{rc_file}"
+        return
+      end
+
+      content = File.read(rc_file)
+      unless content.includes?("work_trees shell init")
+        puts "WorkTrees shell integration not found in #{rc_file}"
+        return
+      end
+
+      cleaned = content.lines.reject { |line| line.includes?("work_trees shell init") || line.strip == "# WorkTrees shell integration" }
+      File.write(rc_file, cleaned.join)
+      puts "✓ Removed WorkTrees shell integration from #{rc_file}"
+      puts "  Restart your shell for changes to take effect."
+    end
+
+    private def self.shell_type_from_env
+      shell_path = ENV["SHELL"]? || "/bin/bash"
+      if shell_path.includes?("zsh")
+        :zsh
+      elsif shell_path.includes?("fish")
+        :fish
+      else
+        :bash
+      end
+    end
+
+    private def self.shell_rc_file
+      home = ENV["HOME"]? || "."
+      case shell_type_from_env
+      when :bash then File.join(home, ".bashrc")
+      when :zsh  then File.join(home, ".zshrc")
+      when :fish then File.join(home, ".config", "fish", "config.fish")
+      else            File.join(home, ".bashrc")
+      end
     end
   end
 end
