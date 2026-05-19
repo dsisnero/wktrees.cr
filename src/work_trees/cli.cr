@@ -22,6 +22,8 @@ module WorkTrees
         Commands.switch(command_args)
       when "remove"
         Commands.remove(command_args)
+      when "shell"
+        Commands.shell(command_args)
       when "help", "--help", "-h"
         print_help
         exit 0
@@ -44,6 +46,7 @@ module WorkTrees
           list     List all worktrees with branch info
           switch   Switch to or create a worktree
           remove   Remove a worktree and optionally its branch
+          shell    Generate shell integration wrapper
           help     Show this help
 
       OPTIONS:
@@ -271,6 +274,31 @@ module WorkTrees
         end
       rescue ex : Git::CommandError
         STDERR.puts "✗ #{ex.message}"
+        exit 1
+      end
+    end
+
+    def self.shell(args : Array(String))
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees shell init [bash|zsh|fish]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      sub = args[0]?
+      case sub
+      when "init"
+        arg = args[1]? || "bash"
+        shell_type = case arg
+                     when "zsh"  then :zsh
+                     when "fish" then :fish
+                     else             :bash
+                     end
+        puts Shell.generate(shell_type)
+      else
+        STDERR.puts "Usage: work_trees shell init [bash|zsh|fish]"
         exit 1
       end
     end
