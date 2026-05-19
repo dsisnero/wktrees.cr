@@ -108,21 +108,129 @@ module WorkTrees
     end
 
     private def self.list_full(worktrees, current_branch)
-      puts "  %-30s %-20s %-8s %-5s %s" % ["Branch", "Worktree", "HEAD", "Bare?", "SHA"]
-      puts "-" * 90
+      repo = Git::Repository.current
+      default_branch = repo.default_branch
+
+      # Header
+      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
 
       worktrees.each do |worktree|
         marker = worktree.branch == current_branch ? "@" : " "
         branch = worktree.branch || "(detached)"
-        name = worktree.dir_name
-        short_head = worktree.head[0, 7]
-        bare = worktree.bare? ? "yes" : "no"
+        short_commit = worktree.head[0, 7]
 
-        puts "#{marker} %-30s %-20s %-8s %-5s %s" % [branch, name, short_head, bare, worktree.head]
+        # Compute status per worktree
+        status, changes, ahead, behind, remote_status = worktree_stats(repo, worktree, default_branch)
+
+        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % [
+          marker, truncate(branch, 25), status, changes,
+          ahead_to_s(ahead), behind_to_s(behind), short_commit, remote_status,
+        ]
       end
 
       puts ""
-      puts "○ Showing #{worktrees.size} worktree(s)"
+      puts "○ Showing #{worktrees.size} worktree(s) • main=#{default_branch}"
+    end
+
+    private def self.worktree_stats(repo, worktree, default_branch)
+      branch = worktree.branch
+      return {"-", "-", 0, 0, ""} unless branch
+
+      # Check working tree status
+      wt_path = worktree.path
+      dirty = Cmd.new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(wt_path)
+        .run
+        .stdout
+
+      status = dirty.empty? ? "clean" : "+"
+
+      # Lines changed since branching (diff from default to branch)
+      diff_result = Cmd.new("git")
+        .args(["diff", "--shortstat", "#{default_branch}...#{branch}"])
+        .run
+      changes = if diff_result.success?
+                  stat = diff_result.stdout.strip
+                  if stat.empty?
+                    ""
+                  else
+                    format_shortstat(stat)
+                  end
+                else
+                  "-"
+                end
+
+      # Commits ahead of default
+      ahead = count_commits_ahead(default_branch, branch)
+
+      # Commits behind default
+      behind = if branch == default_branch
+                 0
+               else
+                 count_commits_ahead(branch, default_branch)
+               end
+
+      # Remote tracking
+      remote_status = if branch == default_branch
+                        remote_ahead(repo)
+                      else
+                        ""
+                      end
+
+      {status, changes, ahead, behind, remote_status}
+    end
+
+    private def self.count_commits_ahead(from : String, to : String) : Int32
+      result = Cmd.new("git")
+        .args(["rev-list", "--count", "#{from}..#{to}"])
+        .run
+      if result.success?
+        result.stdout.strip.to_i32
+      else
+        0
+      end
+    end
+
+    private def self.remote_ahead(repo)
+      result = Cmd.new("git")
+        .args(["rev-list", "--count", "HEAD..@{u}"])
+        .current_dir(repo.discovery_path)
+        .run
+      if result.success? && !result.stdout.strip.empty?
+        "⇡#{result.stdout.strip}"
+      else
+        ""
+      end
+    end
+
+    private def self.format_shortstat(stat : String) : String
+      # Parse "2 files changed, 53 insertions(+), 8 deletions(-)"
+      if m = stat.match(/(\d+) insertion.*?(\d+) deletion/)
+        "+#{m[1]}/-#{m[2]}"
+      elsif m = stat.match(/(\d+) insertion/)
+        "+#{m[1]}"
+      elsif m = stat.match(/(\d+) deletion/)
+        "-#{m[1]}"
+      else
+        stat
+      end
+    end
+
+    private def self.truncate(str : String, max : Int32) : String
+      if str.size > max
+        str[0, max - 1] + "…"
+      else
+        str
+      end
+    end
+
+    private def self.ahead_to_s(n : Int32) : String
+      n > 0 ? "↑#{n}" : ""
+    end
+
+    private def self.behind_to_s(n : Int32) : String
+      n > 0 ? "↓#{n}" : ""
     end
 
     def self.switch(args : Array(String))
