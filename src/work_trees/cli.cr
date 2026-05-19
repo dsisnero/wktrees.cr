@@ -41,26 +41,21 @@ module WorkTrees
     end
 
     def self.print_help
-      puts <<-HELP
-      work_trees #{WorkTrees::VERSION}
-      A CLI for Git worktree management, designed for parallel AI agent workflows.
-
-      USAGE:
-          work_trees <command> [options]
-
-      COMMANDS:
-          list     List all worktrees with branch info
-          switch   Switch to or create a worktree
-          remove   Remove a worktree and optionally its branch
-          shell    Generate shell integration wrapper
-          config   Show or create configuration
-          step     Run individual operations (commit, diff)
-          merge    Merge current branch into target
-          help     Show this help
-
-      OPTIONS:
-          -h, --help     Show this help
-      HELP
+      puts "work_trees #{WorkTrees::VERSION}"
+      puts "A CLI for Git worktree management, designed for parallel AI agent workflows."
+      puts ""
+      puts "USAGE:"
+      puts "    work_trees <command> [options]"
+      puts ""
+      puts "COMMANDS:"
+      puts "    list     List all worktrees with branch info"
+      puts "    switch   Switch to or create a worktree"
+      puts "    remove   Remove a worktree and optionally its branch"
+      puts "    shell    Generate shell integration wrapper"
+      puts "    config   Show or create configuration"
+      puts "    step     Run individual operations (commit, diff)"
+      puts "    merge    Merge current branch into target"
+      puts "    help     Show this help"
     end
   end
 
@@ -414,25 +409,45 @@ module WorkTrees
     end
 
     private def self.generate_commit_message(repo) : String
+      config = Config.load_default
       branch = repo.current_worktree.current_branch
+
+      # Try LLM generation if configured
+      if llm = config.llm_command
+        msg = try_llm_commit(llm, repo)
+        return msg if msg
+      end
+
+      # Fallback: derive from branch name
+      branch_commit_message(branch)
+    end
+
+    private def self.try_llm_commit(llm : String, repo) : String?
       diff = Cmd.new("git")
-        .args(["diff", "--cached", "--stat"])
+        .args(["diff", "--cached"])
         .current_dir(repo.discovery_path)
         .run
         .stdout
 
-      if diff.strip.empty?
-        return "chore: update"
-      end
+      return nil if diff.strip.empty?
 
-      # Generate conventional commit from branch name
+      prompt = "Generate a concise conventional commit message for this diff. Use types: feat, fix, docs, refactor, test, chore, perf, ci. Return ONLY the commit message, no explanation.\n\ndiff:\n#{diff}"
+      result = Cmd.new(llm)
+        .stdin_data(prompt)
+        .run
+
+      if result.success? && !result.stdout.strip.empty?
+        result.stdout.strip.lines.first
+      end
+    end
+
+    private def self.branch_commit_message(branch : String) : String
       prefix = if branch.includes?('/')
                  branch.split('/').first
                else
                  "chore"
                end
 
-      # Map common prefixes to conventional commit types
       type = case prefix
              when "feat", "feature"         then "feat"
              when "fix", "bugfix", "hotfix" then "fix"
@@ -571,18 +586,8 @@ module WorkTrees
       Dir.mkdir_p(dir) unless Dir.exists?(dir)
 
       config = Config::UserConfig.new
-      File.write(config_path, <<-TOML)
-      # WorkTrees configuration
-      worktree-path = "#{config.worktree_path_template}"
-
-      # Hooks — add commands to run at lifecycle events:
-      # [pre-start]
-      # deps = "npm install"
-      # [post-start]
-      # server = "npm run dev"
-      # [post-remove]
-      # cleanup = "echo 'removed {{ branch }}'"
-      TOML
+      toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
+      File.write(config_path, toml_content)
       puts "✓ Created config at #{config_path}"
     end
   end
