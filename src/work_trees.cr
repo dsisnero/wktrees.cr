@@ -7,6 +7,7 @@ require "./work_trees/template/codename"
 require "./work_trees/template/context"
 require "./work_trees/cmd"
 require "./work_trees/git/error"
+require "./work_trees/git/repository"
 
 module WorkTrees
   VERSION = "0.1.0"

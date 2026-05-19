@@ -20,8 +20,10 @@
 - [ ] `shard.yml` runtime dependencies decided
 
 ### 0.2 Core Types & Errors
-- [ ] Error hierarchy (`GitError`, `CommandError`, `WorktrunkError`, `Diagnostic` trait)
-  - `src/git/error.rs` (2444 lines) → `src/work_trees/git/error.cr`
+- [x] Error hierarchy (`GitError`, `CommandError`, `WorktrunkError`, `Diagnostic` trait)
+  - `src/git/error.rs` (2444 lines) → `src/work_trees/git/error.cr` (442 lines)
+  - 35 GitError classes, CommandError, WorktrunkError, RefType — 14 specs passing
+  - Divergence: Crystal enum limitation → abstract class + concrete subclasses
 - [ ] Repository type with caching (`src/git/repository/mod.rs` 1704 lines)
   - `src/git/repository/working_tree.rs`, `branch.rs`, `branches.rs`, `worktrees.rs`
   - `ref_snapshot.rs` (1383 lines), `sha_cache.rs`
