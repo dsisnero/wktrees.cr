@@ -20,6 +20,8 @@ module WorkTrees
         Commands.list(command_args)
       when "switch"
         Commands.switch(command_args)
+      when "remove"
+        Commands.remove(command_args)
       when "help", "--help", "-h"
         print_help
         exit 0
@@ -41,6 +43,7 @@ module WorkTrees
       COMMANDS:
           list     List all worktrees with branch info
           switch   Switch to or create a worktree
+          remove   Remove a worktree and optionally its branch
           help     Show this help
 
       OPTIONS:
@@ -137,6 +140,7 @@ module WorkTrees
         end
       end
 
+      exec = execute_cmd
       repo = Git::Repository.current
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
@@ -149,10 +153,10 @@ module WorkTrees
       end
 
       # Execute command if requested
-      if execute_cmd
+      if exec && (cmd = exec)
         target_path = worktree_path || "."
-        puts "Executing: #{execute_cmd}"
-        Cmd.new("sh").args(["-c", execute_cmd.not_nil!]).current_dir(target_path).run
+        puts "Executing: #{cmd}"
+        Cmd.new("sh").args(["-c", cmd]).current_dir(target_path).run
       end
     end
 
@@ -197,6 +201,71 @@ module WorkTrees
       puts "Switching to worktree for #{target} @ #{wt_path}"
       puts "(cd #{wt_path} to switch manually — shell integration coming soon)"
       wt_path
+    end
+
+    def self.remove(args : Array(String))
+      force = false
+      force_delete = false
+      keep_branch = false
+      branch : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees remove [options] [branch]"
+        parser.on("-f", "--force", "Force removal of dirty worktree") { force = true }
+        parser.on("-D", "--force-delete", "Force delete branch even if not merged") { force_delete = true }
+        parser.on("--no-delete-branch", "Keep the branch after removing worktree") { keep_branch = true }
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+        parser.unknown_args do |_before, after|
+          branch = after[0]? if after.size > 0
+        end
+      end
+
+      repo = Git::Repository.current
+      current_wt = repo.current_worktree
+      current_branch = current_wt.current_branch
+      target = if b = branch
+                 b
+               else
+                 current_branch
+               end
+
+      # Find the worktree for the target branch
+      wt_path = repo.worktree_for_branch(target)
+      unless wt_path
+        STDERR.puts "Error: No worktree found for branch '#{target}'"
+        exit 1
+      end
+
+      # Don't remove the current worktree
+      if wt_path == current_wt.path
+        STDERR.puts "Error: Cannot remove the current worktree"
+        STDERR.puts "Switch to a different worktree first."
+        exit 1
+      end
+
+      puts "◎ Removing worktree for #{target} @ #{wt_path}"
+
+      begin
+        repo.remove_worktree(wt_path, force)
+        puts "✓ Removed worktree @ #{wt_path}"
+
+        # Delete branch unless --no-delete-branch
+        unless keep_branch
+          mode = force_delete ? Git::BranchDeletionMode::ForceDelete : Git::BranchDeletionMode::SafeDelete
+          begin
+            repo.delete_branch(target, mode)
+            puts "✓ Deleted branch #{target}"
+          rescue ex : Git::CommandError
+            STDERR.puts "! Could not delete branch: #{ex.message}"
+          end
+        end
+      rescue ex : Git::CommandError
+        STDERR.puts "✗ #{ex.message}"
+        exit 1
+      end
     end
   end
 end

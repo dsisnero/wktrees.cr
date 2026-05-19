@@ -69,12 +69,13 @@
 ## Phase 1: Core Commands (Minimum Viable)
 
 ### 1.1 `wt switch`
-- [ ] CLI args (`SwitchArgs`: --create, --base, --execute, --clobber, --no-cd, --no-hooks)
-- [ ] Branch resolution (shortcuts: `^`, `-`, `@`, `pr:N`, `mr:N`)
-- [ ] Worktree creation with path template expansion
+- [x] CLI args (`--create`, `--base`, `--execute`, `--path-template`)
+- [x] Worktree creation with path template expansion
+- [x] Switch to existing worktree (branch → path lookup)
+- [ ] Branch shortcuts (^ for default, - for previous, @ for current)
 - [ ] Pre/post switch hooks
-- [ ] `--execute` support
-- [ ] Interactive picker (skim/TUI)
+- [ ] Interactive picker (deferred to Phase 3/4)
+- [ ] Shell integration for cd
 - [ ] Tests: `tests/switch.rs`, `tests/switch_interactive.rs`
 
 ### 1.2 `wt list`
