@@ -27,6 +27,8 @@ module WorkTrees
         Commands.shell(command_args)
       when "config"
         Commands.config(command_args)
+      when "hook"
+        Commands.hook(command_args)
       when "step"
         Commands.step(command_args)
       when "merge"
@@ -529,6 +531,8 @@ module WorkTrees
         step_eval(args[1..])
       when "prune"
         step_prune
+      when "copy-ignored"
+        step_copy_ignored(args[1..])
       else
         STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune]"
         exit 1
@@ -1098,6 +1102,117 @@ module WorkTrees
       when :zsh  then File.join(home, ".zshrc")
       when :fish then File.join(home, ".config", "fish", "config.fish")
       else            File.join(home, ".bashrc")
+      end
+    end
+
+    def self.hook(args : Array(String))
+      sub = args[0]?
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees hook [show|run]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      case sub
+      when "show"
+        hook_show
+      else
+        hook_show
+      end
+    end
+
+    private def self.hook_show
+      repo = Git::Repository.current
+      user_path = Config.default_config_path
+      project_path = Config.project_config_path(repo.discovery_path)
+      branch = repo.current_worktree.current_branch
+
+      puts "=== Hooks ==="
+      puts ""
+
+      # Show user hooks
+      if File.exists?(user_path)
+        puts "User (#{user_path}):"
+        Config::HOOK_SECTIONS.each do |section|
+          hooks = Config.parse_hooks(File.read(user_path), section)
+          unless hooks.empty?
+            puts "  [#{section}]"
+            hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+          end
+        end
+        puts ""
+      end
+
+      # Show project hooks
+      if File.exists?(project_path)
+        puts "Project (#{project_path}):"
+        Config::HOOK_SECTIONS.each do |section|
+          hooks = Config.parse_hooks(File.read(project_path), section)
+          unless hooks.empty?
+            puts "  [#{section}]"
+            hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+          end
+        end
+        puts ""
+      end
+
+      unless File.exists?(user_path) || File.exists?(project_path)
+        puts "No hooks configured."
+        puts "Add hooks to ~/.config/worktrees/config.toml or .config/wt.toml"
+      end
+
+      # Show available template variables
+      puts "Available variables: branch, worktree_path, worktree_name,"
+      puts "  repo, repo_path, commit, short_commit, default_branch,"
+      puts "  base (switch), target (merge/remove), hook_type, hook_name"
+      puts ""
+      puts "Current: branch=#{branch}"
+    end
+
+    private def self.step_copy_ignored(args : Array(String))
+      source : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step copy-ignored [--source BRANCH]"
+        parser.on("--source=BRANCH", "Source branch (default: default branch)") { |src| source = src }
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      repo = Git::Repository.current
+      current_path = repo.current_worktree.path
+      current_branch = repo.current_worktree.current_branch
+
+      source_branch = if s = source
+                        s
+                      else
+                        repo.default_branch
+                      end
+
+      source_path = repo.worktree_for_branch(source_branch)
+      unless source_path
+        STDERR.puts "Error: No worktree for #{source_branch}"
+        exit 1
+      end
+
+      puts "◎ Copying gitignored files from #{source_branch} → #{current_branch}..."
+
+      # Use rsync to copy gitignored files (respects .gitignore)
+      # --exclude='.git' --filter=':- .gitignore'
+      result = Cmd.new("rsync")
+        .args(["-a", "--filter=:- .gitignore", "--exclude=.git", "#{source_path}/", "#{current_path}/"])
+        .run
+
+      if result.success?
+        puts "✓ Copied gitignored files from #{source_branch}"
+      else
+        STDERR.puts "! rsync failed (rsync may not be installed)"
+        STDERR.puts "  #{result.stderr.lines.first?}"
       end
     end
   end
