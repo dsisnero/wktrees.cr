@@ -420,11 +420,23 @@ module WorkTrees
     end
 
     private def self.run_hooks(section : String, vars : Hash(String, String))
-      config_path = Config.default_config_path
-      return unless File.exists?(config_path)
+      repo = Git::Repository.current rescue nil
+      hooks = [] of Config::HookCommand
 
-      content = File.read(config_path)
-      hooks = Config.parse_hooks(content, section)
+      # Load from user config
+      user_path = Config.default_config_path
+      if File.exists?(user_path)
+        hooks.concat Config.parse_hooks(File.read(user_path), section)
+      end
+
+      # Load from project config
+      if repo
+        project_path = Config.project_config_path(repo.discovery_path)
+        if File.exists?(project_path)
+          hooks.concat Config.parse_hooks(File.read(project_path), section)
+        end
+      end
+
       return if hooks.empty?
 
       hooks.each do |hook|
@@ -1030,8 +1042,10 @@ module WorkTrees
         shell_install
       when "uninstall"
         shell_uninstall
+      when "completions"
+        shell_completions(args[1..])
       else
-        STDERR.puts "Usage: work_trees shell [init|install|uninstall] [bash|zsh|fish]"
+        STDERR.puts "Usage: work_trees shell [init|install|uninstall|completions] [bash|zsh|fish]"
         exit 1
       end
     end
@@ -1241,6 +1255,54 @@ module WorkTrees
       when :fish then File.join(home, ".config", "fish", "config.fish")
       else            File.join(home, ".bashrc")
       end
+    end
+
+    private def self.shell_completions(args : Array(String))
+      arg = args[0]?
+      shell = if arg
+                case arg
+                when "zsh"  then :zsh
+                when "fish" then :fish
+                else             :bash
+                end
+              else
+                shell_type_from_env
+              end
+
+      case shell
+      when :bash then puts bash_completions
+      when :zsh  then puts zsh_completions
+      when :fish then puts fish_completions
+      end
+    end
+
+    private def self.bash_completions : String
+      <<-BASH
+      _work_trees_complete() {
+          local cur prev words cword
+          _init_completion || return
+          COMPREPLY=($(compgen -W "list switch remove step merge hook config shell help" -- "$cur"))
+      }
+      complete -F _work_trees_complete work_trees
+      BASH
+    end
+
+    private def self.zsh_completions : String
+      <<-ZSH
+      #compdef work_trees
+      _work_trees() {
+          _arguments \\
+              '1:command:(list switch remove step merge hook config shell help)'
+      }
+      _work_trees
+      ZSH
+    end
+
+    private def self.fish_completions : String
+      <<-FISH
+      complete -c work_trees -f
+      complete -c work_trees -a "list switch remove step merge hook config shell help"
+      FISH
     end
 
     def self.hook(args : Array(String))
