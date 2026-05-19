@@ -24,6 +24,8 @@ module WorkTrees
         Commands.remove(command_args)
       when "shell"
         Commands.shell(command_args)
+      when "config"
+        Commands.config(command_args)
       when "help", "--help", "-h"
         print_help
         exit 0
@@ -47,6 +49,7 @@ module WorkTrees
           switch   Switch to or create a worktree
           remove   Remove a worktree and optionally its branch
           shell    Generate shell integration wrapper
+          config   Show or create configuration
           help     Show this help
 
       OPTIONS:
@@ -295,10 +298,17 @@ module WorkTrees
       end
 
       puts "◎ Removing worktree for #{target} @ #{wt_path}"
+      remove_vars = {"branch" => target, "worktree_path" => wt_path}
 
       begin
+        # Run pre-remove hooks
+        run_hooks("pre-remove", remove_vars)
+
         repo.remove_worktree(wt_path, force)
         puts "✓ Removed worktree @ #{wt_path}"
+
+        # Run post-remove hooks
+        run_hooks("post-remove", remove_vars)
 
         # Delete branch unless --no-delete-branch
         unless keep_branch
@@ -339,6 +349,66 @@ module WorkTrees
         STDERR.puts "Usage: work_trees shell init [bash|zsh|fish]"
         exit 1
       end
+    end
+
+    def self.config(args : Array(String))
+      sub = args[0]?
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees config [show|create]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      case sub
+      when "show"
+        config_show
+      when "create"
+        config_create
+      else
+        config_show
+      end
+    end
+
+    private def self.config_show
+      config_path = Config.default_config_path
+      if File.exists?(config_path)
+        puts File.read(config_path)
+      else
+        puts "# No config file found at #{config_path}"
+        config = Config::UserConfig.new
+        puts "# Default: worktree-path = #{config.worktree_path_template.inspect}"
+        puts ""
+        puts "# Create one with: work_trees config create"
+      end
+    end
+
+    private def self.config_create
+      config_path = Config.default_config_path
+      if File.exists?(config_path)
+        STDERR.puts "Config already exists at #{config_path}"
+        exit 1
+      end
+
+      dir = File.dirname(config_path)
+      Dir.mkdir_p(dir) unless Dir.exists?(dir)
+
+      config = Config::UserConfig.new
+      File.write(config_path, <<-TOML)
+      # WorkTrees configuration
+      worktree-path = "#{config.worktree_path_template}"
+
+      # Hooks — add commands to run at lifecycle events:
+      # [pre-start]
+      # deps = "npm install"
+      # [post-start]
+      # server = "npm run dev"
+      # [post-remove]
+      # cleanup = "echo 'removed {{ branch }}'"
+      TOML
+      puts "✓ Created config at #{config_path}"
     end
   end
 end
