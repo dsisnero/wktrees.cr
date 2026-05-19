@@ -21,19 +21,15 @@
 
 ### 0.2 Core Types & Errors
 - [x] Error hierarchy (`GitError`, `CommandError`, `WorktrunkError`, `Diagnostic` trait)
-  - `src/git/error.rs` (2444 lines) → `src/work_trees/git/error.cr` (442 lines)
-  - 35 GitError classes, CommandError, WorktrunkError, RefType — 14 specs passing
-  - Divergence: Crystal enum limitation → abstract class + concrete subclasses
-- [ ] Repository type with caching (`src/git/repository/mod.rs` 1704 lines)
-  - `src/git/repository/working_tree.rs`, `branch.rs`, `branches.rs`, `worktrees.rs`
-  - `ref_snapshot.rs` (1383 lines), `sha_cache.rs`
-- [ ] WorktreeInfo, BranchRef, Branch types (`src/git/mod.rs` 1172 lines)
-- [x] `ShellExec::Cmd` builder (`src/shell_exec.rs` 1962 lines) → `src/work_trees/cmd.cr`
-  - Basic Cmd builder with run, run!, args, current_dir, context, stdin_bytes
-  - 7 specs passing
-  - Deferred: shell wrapping, signal forwarding, trace logging, process groups
+  - 35 GitError classes, 14 specs — commit 4781ae4
+- [x] Repository type (`src/work_trees/git/repository.cr`, 9 specs)
+  - `Repository.current`, `.at(path)`, `run_command`, `run_command_check`, `worktree_at`, `default_branch`
+- [x] WorkingTree type (`src/work_trees/git/repository.cr`)
+  - `run_command`, `head_sha`, `current_branch`, `worktree_name`
+- [x] `Cmd` builder (`src/work_trees/cmd.cr`, 7 specs)
+- [ ] Worktree list parsing (`git worktree list --porcelain`)
 - [ ] Output formatting (`src/output/`, `src/styling/`)
-- [ ] Tracing/logging infrastructure (`src/trace/`, `src/log_files.rs`, `src/command_log.rs`)
+- [ ] Tracing/logging infrastructure
 
 ### 0.3 Template Engine (ECR divergence)
 - [x] Custom filters ported: `sanitize`, `sanitize_db`, `sanitize_hash`, `hash`, `hash_port`, `dirname`, `basename`, `codename`, `redact_credentials`
@@ -255,4 +251,6 @@
 - **2026-05-18**: The upstream is **very large** (~120K lines, ~100 source files). Phased approach essential.
 - **2026-05-18**: Core commands (switch, list, remove) should be the first target — they deliver 80% of user value.
 - **2026-05-18**: Template filters ported. 36 specs passing. Codename filter verified byte-identical with upstream (SHA-256 determinism across languages). Petname v3.0.0 medium wordlists embedded at compile time via macros.
+- **2026-05-18**: Repository + WorkingTree types ported (commit e9c925e). Basic git command execution working. 74 total specs.
+- **2026-05-18**: Error types ported (commit 4781ae4). Crystal enum limitation required class-based approach for GitError variants.
 - **2026-05-18**: OpenSSL used for SHA-256 in codename — dependency added implicitly via Crystal stdlib.
