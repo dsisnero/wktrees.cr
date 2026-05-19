@@ -1099,10 +1099,12 @@ module WorkTrees
 
     def self.config(args : Array(String))
       project = false
+      full = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees config [show|create] [--project]"
+        parser.banner = "Usage: work_trees config [show|create] [--project] [--full]"
         parser.on("--project", "Create project config (.config/wt.toml)") { project = true }
+        parser.on("--full", "Show resolved config with defaults and hooks") { full = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -1113,7 +1115,13 @@ module WorkTrees
 
       case sub
       when "show"
-        config_show
+        if project
+          config_show_project
+        elsif full
+          config_show_resolved
+        else
+          config_show
+        end
       when "create"
         config_create(project)
       when "state"
@@ -1156,6 +1164,93 @@ module WorkTrees
       toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
       File.write(config_path, toml_content)
       puts "✓ Created #{project ? "project " : ""}config at #{config_path}"
+    end
+
+    private def self.config_show_resolved
+      user_path = Config.default_config_path
+      user_config = Config.load_default
+      repo = Git::Repository.current rescue nil
+      project_config = repo ? Config.load_project(repo.discovery_path) : nil
+
+      puts "=== Resolved Configuration ==="
+      puts ""
+
+      show_resolved_path(user_config, project_config, user_path)
+      show_resolved_hooks(repo, project_config, user_path)
+      show_resolved_aliases(user_path)
+      show_resolved_state
+    end
+
+    private def self.show_resolved_path(user_config, project_config, user_path)
+      puts "[worktree-path]"
+      puts "  default: #{Config::UserConfig::DEFAULT_PATH_TEMPLATE}"
+      puts "  user:    #{user_config.worktree_path_template}" if File.exists?(user_path)
+      if project_config && (pt = project_config.worktree_path_template)
+        puts "  project: #{pt}"
+      end
+      merged = project_config.try(&.worktree_path_template) || user_config.worktree_path_template
+      puts "  => #{merged}"
+      puts ""
+    end
+
+    private def self.show_resolved_hooks(repo, project_config, user_path)
+      puts "[commit.generation]"
+      user_config = Config.load_default
+      puts "  command: #{user_config.llm_command || "(not set)"}"
+      if project_config && (llm = project_config.llm_command)
+        puts "  project: #{llm}"
+      end
+      puts ""
+
+      puts "[hooks]"
+      Config::HOOK_SECTIONS.each do |section|
+        hooks = Config.parse_hooks(File.read(user_path), section) rescue [] of Config::HookCommand
+        project_hooks = if project_config && repo
+                          project_path = Config.project_config_path(repo.discovery_path)
+                          Config.parse_hooks(File.read(project_path), section) rescue [] of Config::HookCommand
+                        else
+                          [] of Config::HookCommand
+                        end
+        next if hooks.empty? && project_hooks.empty?
+        puts "  [#{section}]"
+        hooks.each { |hook| puts "    user.#{hook.name}: #{hook.command}" }
+        project_hooks.each { |hook| puts "    project.#{hook.name}: #{hook.command}" }
+      end
+      puts ""
+    end
+
+    private def self.show_resolved_aliases(user_path)
+      if File.exists?(user_path)
+        aliases = Config.parse_aliases(File.read(user_path))
+        unless aliases.empty?
+          puts "[aliases]"
+          aliases.each { |key, value| puts "  #{key} = #{value}" }
+          puts ""
+        end
+      end
+    end
+
+    private def self.show_resolved_state
+      puts "[state (current branch)]"
+      vars_result = Cmd.new("git")
+        .args(["config", "--local", "--get-regexp", "^worktrees\\.state\\."])
+        .run rescue nil
+      if vars_result && vars_result.success? && !vars_result.stdout.strip.empty?
+        vars_result.stdout.each_line { |line| puts "  #{line.strip}" }
+      else
+        puts "  (none)"
+      end
+    end
+
+    private def self.config_show_project
+      repo = Git::Repository.current
+      project_path = Config.project_config_path(repo.discovery_path)
+      if File.exists?(project_path)
+        puts File.read(project_path)
+      else
+        puts "No project config at #{project_path}"
+        puts "Create with: work_trees config create --project"
+      end
     end
 
     private def self.config_state(args : Array(String))
