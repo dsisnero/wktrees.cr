@@ -13,6 +13,7 @@ require "./work_trees/git/worktree_info"
 require "./work_trees/git/remove"
 require "./work_trees/git/branch_resolver"
 require "./work_trees/shell/wrapper"
+require "./work_trees/config/config"
 require "./work_trees/cli"
 
 module WorkTrees

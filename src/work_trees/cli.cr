@@ -126,7 +126,8 @@ module WorkTrees
       base_branch : String? = nil
       branch : String? = nil
       execute_cmd : String? = nil
-      path_template = "~/worktrees/{{ branch | sanitize }}"
+      config = Config.load_default
+      path_template = config.worktree_path_template
 
       OptionParser.parse(args) do |parser|
         parser.banner = "Usage: work_trees switch [options] [branch]"
