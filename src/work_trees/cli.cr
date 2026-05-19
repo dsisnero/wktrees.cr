@@ -26,6 +26,8 @@ module WorkTrees
         Commands.shell(command_args)
       when "config"
         Commands.config(command_args)
+      when "step"
+        Commands.step(command_args)
       when "help", "--help", "-h"
         print_help
         exit 0
@@ -50,6 +52,7 @@ module WorkTrees
           remove   Remove a worktree and optionally its branch
           shell    Generate shell integration wrapper
           config   Show or create configuration
+          step     Run individual operations (commit, diff)
           help     Show this help
 
       OPTIONS:
@@ -249,8 +252,17 @@ module WorkTrees
         exit 1
       end
 
+      switch_vars = {"branch" => target, "worktree_path" => wt_path}
+
+      # Pre-switch hooks
+      run_hooks("pre-switch", switch_vars)
+
       puts "Switching to worktree for #{target} @ #{wt_path}"
       puts "(cd #{wt_path} to switch manually — shell integration coming soon)"
+
+      # Post-switch hooks
+      run_hooks("post-switch", switch_vars)
+
       wt_path
     end
 
@@ -324,6 +336,104 @@ module WorkTrees
         STDERR.puts "✗ #{ex.message}"
         exit 1
       end
+    end
+
+    def self.step(args : Array(String))
+      sub = args[0]?
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step <subcommand>"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      case sub
+      when "commit"
+        step_commit(args[1..])
+      when "diff"
+        step_diff
+      else
+        STDERR.puts "Usage: work_trees step [commit|diff]"
+        exit 1
+      end
+    end
+
+    private def self.step_commit(args : Array(String))
+      message : String? = nil
+      all = false
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step commit [options]"
+        parser.on("-m MESSAGE", "--message=MESSAGE", "Commit message") { |msg| message = msg }
+        parser.on("-a", "--all", "Stage all changes") { all = true }
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      repo = Git::Repository.current
+
+      # Stage changes
+      stage_args = all ? ["add", "-A"] : ["add", "-u"]
+      repo.run_command(stage_args)
+
+      # Check if there's anything to commit
+      if repo.run_command_check(["diff", "--cached", "--quiet"])
+        puts "Nothing to commit."
+      else
+        # Generate commit message from diff
+        commit_msg = if m = message
+                       m
+                     else
+                       generate_commit_message(repo)
+                     end
+        repo.run_command(["commit", "-m", commit_msg])
+        puts "✓ Committed: #{commit_msg.lines.first}"
+      end
+    end
+
+    private def self.step_diff
+      repo = Git::Repository.current
+      result = Cmd.new("git").args(["diff", "--stat"]).current_dir(repo.discovery_path).run
+      puts result.stdout
+    end
+
+    private def self.generate_commit_message(repo) : String
+      branch = repo.current_worktree.current_branch
+      diff = Cmd.new("git")
+        .args(["diff", "--cached", "--stat"])
+        .current_dir(repo.discovery_path)
+        .run
+        .stdout
+
+      if diff.strip.empty?
+        return "chore: update"
+      end
+
+      # Generate conventional commit from branch name
+      prefix = if branch.includes?('/')
+                 branch.split('/').first
+               else
+                 "chore"
+               end
+
+      # Map common prefixes to conventional commit types
+      type = case prefix
+             when "feat", "feature"         then "feat"
+             when "fix", "bugfix", "hotfix" then "fix"
+             when "docs", "doc"             then "docs"
+             when "refactor"                then "refactor"
+             when "test", "tests"           then "test"
+             when "chore"                   then "chore"
+             when "perf"                    then "perf"
+             when "ci"                      then "ci"
+             else                                "feat"
+             end
+
+      "#{type}: #{branch}"
     end
 
     def self.shell(args : Array(String))
