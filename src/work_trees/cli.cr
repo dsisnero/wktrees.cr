@@ -687,9 +687,19 @@ module WorkTrees
 
     def self.merge(args : Array(String))
       target : String? = nil
+      no_commit = false
+      no_squash = false
+      no_rebase = false
+      no_remove = false
+      no_ff = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees merge [target]"
+        parser.banner = "Usage: work_trees merge [options] [target]"
+        parser.on("--no-commit", "Skip committing before merge") { no_commit = true }
+        parser.on("--no-squash", "Skip squashing before merge") { no_squash = true }
+        parser.on("--no-rebase", "Skip rebasing onto target") { no_rebase = true }
+        parser.on("--no-remove", "Keep worktree after merge") { no_remove = true }
+        parser.on("--no-ff", "Skip fast-forward only check") { no_ff = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -713,29 +723,78 @@ module WorkTrees
 
       puts "◎ Merging #{branch} into #{target_branch}..."
 
-      # Rebase onto target
-      begin
-        repo.run_command(["rebase", target_branch])
-      rescue ex : Git::CommandError
-        STDERR.puts "! Rebase failed: #{ex.message}"
-        STDERR.puts "Resolve conflicts and run: git rebase --continue"
-        exit 1
-      end
-
-      # Switch to target and fast-forward merge
-      target_wt_path = repo.worktree_for_branch(target_branch)
-      unless target_wt_path
-        STDERR.puts "Error: No worktree for #{target_branch}"
-        exit 1
-      end
-
-      Cmd.new("git").args(["checkout", target_branch]).current_dir(target_wt_path).run!
-      Cmd.new("git").args(["merge", "--ff-only", branch]).current_dir(target_wt_path).run!
+      # Run merge pipeline
+      auto_commit(repo) unless no_commit
+      squash_branch(repo, branch, target_branch) unless no_squash
+      rebase_branch(repo, target_branch) unless no_rebase
+      fast_forward_merge(repo, branch, target_branch, no_ff)
+      cleanup_after_merge(repo, branch, target_branch) unless no_remove
 
       puts "✓ Merged #{branch} into #{target_branch}"
 
       # Post-merge hooks
       run_hooks("post-merge", merge_vars)
+    end
+
+    private def self.auto_commit(repo)
+      if !repo.run_command_check(["diff", "--quiet"]) || !repo.run_command_check(["diff", "--cached", "--quiet"])
+        puts "  Committing changes..."
+        commit_msg = generate_commit_message(repo)
+        repo.run_command(["add", "-A"])
+        repo.run_command(["commit", "-m", commit_msg])
+        puts "  ✓ #{commit_msg.lines.first}"
+      end
+    end
+
+    private def self.squash_branch(repo, branch, target_branch)
+      merge_base = repo.run_command(["merge-base", branch, target_branch]).strip
+      return if merge_base.empty?
+      count = repo.run_command(["rev-list", "--count", "#{merge_base}..#{branch}"]).strip.to_i
+      return if count <= 1
+      puts "  Squashing #{count} commits..."
+      repo.run_command(["reset", "--soft", merge_base])
+      squash_msg = generate_commit_message(repo)
+      repo.run_command(["commit", "-m", "squash: #{squash_msg}"])
+      puts "  ✓ Squashed into: #{squash_msg.lines.first}"
+    end
+
+    private def self.rebase_branch(repo, target_branch)
+      puts "  Rebasing onto #{target_branch}..."
+      begin
+        repo.run_command(["rebase", target_branch])
+        puts "  ✓ Rebased"
+      rescue ex : Git::CommandError
+        STDERR.puts "! Rebase conflict: #{ex.message}"
+        STDERR.puts "Resolve conflicts and run: git rebase --continue"
+        exit 1
+      end
+    end
+
+    private def self.fast_forward_merge(repo, branch, target_branch, no_ff)
+      target_wt_path = repo.worktree_for_branch(target_branch)
+      unless target_wt_path
+        STDERR.puts "Error: No worktree for #{target_branch}"
+        exit 1
+      end
+      puts "  Merging into #{target_branch}..."
+      merge_args = no_ff ? ["merge", branch] : ["merge", "--ff-only", branch]
+      Cmd.new("git").args(merge_args).current_dir(target_wt_path).run!
+    end
+
+    private def self.cleanup_after_merge(repo, branch, target_branch)
+      puts "◎ Cleaning up #{branch} worktree..."
+      if wt_path = repo.worktree_for_branch(branch)
+        begin
+          repo.remove_worktree(wt_path)
+          repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
+          puts "✓ Removed #{branch} worktree and branch"
+          if target_path = repo.worktree_for_branch(target_branch)
+            emit_cd_directive(target_path)
+          end
+        rescue ex : Git::CommandError
+          puts "! Could not remove worktree: #{ex.message}"
+        end
+      end
     end
 
     def self.shell(args : Array(String))
