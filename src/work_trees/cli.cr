@@ -139,8 +139,8 @@ module WorkTrees
           puts parser
           exit 0
         end
-        parser.unknown_args do |_before, after|
-          branch = after[0]? if after.size > 0
+        parser.unknown_args do |before, _after|
+          branch = before[0]? if before.size > 0
         end
       end
 
@@ -179,13 +179,26 @@ module WorkTrees
 
       vars = {"branch" => branch, "repo" => File.basename(repo.discovery_path)}
       worktree_path = Template.expand(path_template, vars)
+      # Expand ~ to home directory
+      if worktree_path.starts_with?("~/")
+        home = ENV["HOME"]? || "."
+        worktree_path = File.join(home, worktree_path[2..])
+      end
       worktree_path = File.expand_path(worktree_path)
       base = base_branch || repo.default_branch
+
+      # Add resolved path to template vars for post-create hooks
+      hook_vars = vars.dup
+      hook_vars["worktree_path"] = worktree_path
+      hook_vars["base"] = base
 
       if existing = repo.worktree_for_branch(branch)
         STDERR.puts "Error: Worktree already exists for '#{branch}' at #{existing}"
         exit 1
       end
+
+      # Run pre-start hooks if configured
+      run_hooks("pre-start", hook_vars)
 
       puts "◎ Creating worktree for #{branch} from #{base}..."
       puts "  Path: #{worktree_path}"
@@ -197,7 +210,31 @@ module WorkTrees
         STDERR.puts "✗ #{ex.message}"
         exit 1
       end
+
+      # Run post-start hooks if configured
+      run_hooks("post-start", hook_vars)
+
       worktree_path
+    end
+
+    private def self.run_hooks(section : String, vars : Hash(String, String))
+      config_path = Config.default_config_path
+      return unless File.exists?(config_path)
+
+      content = File.read(config_path)
+      hooks = Config.parse_hooks(content, section)
+      return if hooks.empty?
+
+      hooks.each do |hook|
+        expanded = hook.expand(vars)
+        puts "  ▶ #{hook.name}: #{expanded}"
+        result = Cmd.new("sh").args(["-c", expanded]).run
+        if result.success?
+          puts "    ✓ #{hook.name} completed"
+        else
+          STDERR.puts "    ✗ #{hook.name} failed (exit #{result.exit_code})"
+        end
+      end
     end
 
     private def self.switch_to_existing(repo, branch, current_branch)
@@ -229,8 +266,8 @@ module WorkTrees
           puts parser
           exit 0
         end
-        parser.unknown_args do |_before, after|
-          branch = after[0]? if after.size > 0
+        parser.unknown_args do |before, _after|
+          branch = before[0]? if before.size > 0
         end
       end
 

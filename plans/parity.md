@@ -45,13 +45,14 @@
 - [ ] `ShellArgs` equivalent for alias args handling
 
 ### 0.4 Config System
-- [ ] TOML parsing (user config `~/.config/worktrunk/config.toml`)
-- [ ] Project config (`.config/wt.toml`)
-- [ ] Config deserialization (`UserConfig`, `ProjectConfig` structs)
-- [ ] Config merging (user + project + env overrides)
-- [ ] Config deprecation & migration
-- [ ] Config state management (vars, markers, hints, CI cache, logs)
-- [ ] Unknown key detection/warnings
+- [x] TOML parsing (crystal-community/toml.cr v0.8.1)
+- [x] UserConfig with worktree_path_template
+- [x] Config.load_user / parse_user / load_default
+- [x] Integrated into wt switch (reads path template from config)
+- [ ] Project config (.config/wt.toml)
+- [ ] Full config sections (hooks, commit.generation, list, merge, remove, switch)
+- [ ] Env var overrides
+- [ ] Deprecation migration
 
 ### 0.5 Git Operations
 - [ ] Git command execution wrapper
