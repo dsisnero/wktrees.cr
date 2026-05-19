@@ -4,6 +4,7 @@
 
 require "option_parser"
 require "json"
+require "time"
 
 module WorkTrees
   module CLI
@@ -514,31 +515,33 @@ module WorkTrees
         end
       end
 
+      dispatch_step(sub, args[1..])
+    end
+
+    private def self.dispatch_step(sub, sub_args)
+      # Group 1: commit operations
       case sub
-      when "commit"
-        step_commit(args[1..])
-      when "diff"
-        step_diff
-      when "squash"
-        step_squash
-      when "rebase"
-        step_rebase(args[1..])
-      when "push"
-        step_push(args[1..])
-      when "for-each"
-        step_for_each(args[1..])
-      when "eval"
-        step_eval(args[1..])
-      when "prune"
-        step_prune
-      when "copy-ignored"
-        step_copy_ignored(args[1..])
-      when "promote"
-        step_promote(args[1..])
-      when "relocate"
-        step_relocate
+      when "commit" then step_commit(sub_args)
+      when "diff"   then step_diff
+      when "squash" then step_squash
+      when "rebase" then step_rebase(sub_args)
+      when "push"   then step_push(sub_args)
       else
-        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune]"
+        dispatch_step2(sub, sub_args)
+      end
+    end
+
+    private def self.dispatch_step2(sub, sub_args)
+      case sub
+      when "for-each"     then step_for_each(sub_args)
+      when "eval"         then step_eval(sub_args)
+      when "prune"        then step_prune
+      when "copy-ignored" then step_copy_ignored(sub_args)
+      when "promote"      then step_promote(sub_args)
+      when "relocate"     then step_relocate
+      when "tether"       then step_tether(sub_args)
+      else
+        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether]"
         exit 1
       end
     end
@@ -1002,21 +1005,24 @@ module WorkTrees
     end
 
     def self.config(args : Array(String))
-      sub = args[0]?
+      project = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees config [show|create]"
+        parser.banner = "Usage: work_trees config [show|create] [--project]"
+        parser.on("--project", "Create project config (.config/wt.toml)") { project = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
         end
       end
 
+      sub = args[0]?
+
       case sub
       when "show"
         config_show
       when "create"
-        config_create
+        config_create(project)
       else
         config_show
       end
@@ -1035,8 +1041,14 @@ module WorkTrees
       end
     end
 
-    private def self.config_create
-      config_path = Config.default_config_path
+    private def self.config_create(project = false)
+      if project
+        repo = Git::Repository.current
+        config_path = Config.project_config_path(repo.discovery_path)
+      else
+        config_path = Config.default_config_path
+      end
+
       if File.exists?(config_path)
         STDERR.puts "Config already exists at #{config_path}"
         exit 1
@@ -1048,7 +1060,7 @@ module WorkTrees
       config = Config::UserConfig.new
       toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
       File.write(config_path, toml_content)
-      puts "✓ Created config at #{config_path}"
+      puts "✓ Created #{project ? "project " : ""}config at #{config_path}"
     end
 
     private def self.shell_install
@@ -1351,6 +1363,54 @@ module WorkTrees
       else
         puts "○ All worktrees at expected paths."
       end
+    end
+
+    private def self.step_tether(args : Array(String))
+      command = args.join(" ")
+
+      if command.strip.empty?
+        STDERR.puts "Usage: work_trees step tether <command>"
+        STDERR.puts "  Runs a command and kills it when the worktree is removed."
+        exit 1
+      end
+
+      repo = Git::Repository.current
+      worktree_path = repo.current_worktree.path
+      branch = repo.current_worktree.current_branch
+
+      puts "◎ Tethered: #{command}"
+      puts "  Worktree: #{branch} @ #{worktree_path}"
+      puts "  (kill with: work_trees remove #{branch})"
+      puts ""
+
+      # Run command in background, monitor worktree dir
+      process = Process.new(
+        "sh",
+        ["-c", command],
+        chdir: worktree_path,
+        input: Process::Redirect::Close,
+        output: Process::Redirect::Inherit,
+        error: Process::Redirect::Inherit
+      )
+
+      # Monitor worktree — if directory is removed, kill the process
+      spawn do
+        loop do
+          sleep 2.seconds
+          unless Dir.exists?(worktree_path)
+            puts ""
+            puts "! Worktree removed, terminating tethered process..."
+            process.signal(Signal::TERM) rescue nil
+            sleep 1.second
+            process.signal(Signal::KILL) rescue nil
+            break
+          end
+        end
+      end
+
+      process.wait
+      puts ""
+      puts "○ Tethered process exited."
     end
   end
 end
