@@ -533,6 +533,10 @@ module WorkTrees
         step_prune
       when "copy-ignored"
         step_copy_ignored(args[1..])
+      when "promote"
+        step_promote(args[1..])
+      when "relocate"
+        step_relocate
       else
         STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune]"
         exit 1
@@ -1258,6 +1262,94 @@ module WorkTrees
       else
         STDERR.puts "! rsync failed (rsync may not be installed)"
         STDERR.puts "  #{result.stderr.lines.first?}"
+      end
+    end
+
+    private def self.step_promote(args : Array(String))
+      target : String? = nil
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step promote [target-branch]"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+        parser.unknown_args do |before, _after|
+          target = before[0]? if before.size > 0
+        end
+      end
+
+      repo = Git::Repository.current
+      current_branch = repo.current_worktree.current_branch
+      default_branch = repo.default_branch
+      target_branch = if t = target
+                        t
+                      else
+                        default_branch
+                      end
+
+      target_path = repo.worktree_for_branch(target_branch)
+      unless target_path
+        STDERR.puts "Error: No worktree for #{target_branch}"
+        exit 1
+      end
+
+      current_path = repo.current_worktree.path
+
+      puts "◎ Swapping #{current_branch} ↔ #{target_branch}..."
+
+      # Checkout target in current worktree, feature in target worktree
+      Cmd.new("git").args(["checkout", target_branch]).current_dir(current_path).run!
+      Cmd.new("git").args(["checkout", current_branch]).current_dir(target_path).run!
+
+      puts "✓ #{current_branch} is now in #{target_path}"
+      puts "  #{target_branch} is now in #{current_path}"
+    end
+
+    private def self.step_relocate
+      repo = Git::Repository.current
+      config = Config.load_merged(repo.discovery_path)
+      worktrees = repo.list_worktrees
+      relocated = 0
+
+      puts "◎ Checking worktree paths..."
+
+      worktrees.each do |worktree|
+        branch = worktree.branch
+        next unless branch
+
+        # Compute expected path from config template
+        vars = {"branch" => branch, "repo" => File.basename(repo.discovery_path)}
+        expected_path = Template.expand(config.worktree_path_template, vars)
+        expected_path = if expected_path.starts_with?("~/")
+                          File.join(ENV["HOME"] || ".", expected_path[2..])
+                        else
+                          File.expand_path(expected_path)
+                        end
+
+        # Skip if already at expected path
+        current_path = worktree.path
+        next if current_path == expected_path
+
+        if Dir.exists?(expected_path)
+          puts "  #{branch}: skipping (target exists: #{expected_path})"
+        else
+          puts "  #{branch}: #{worktree.path} → #{expected_path}"
+          begin
+            File.rename(worktree.path, expected_path)
+            Cmd.new("git").args(["worktree", "repair"]).current_dir(expected_path).run
+            relocated += 1
+          rescue ex : File::Error
+            puts "    ! Cannot move: #{ex.message}"
+          end
+        end
+      end
+
+      if relocated > 0
+        puts ""
+        puts "✓ Relocated #{relocated} worktree(s)"
+      else
+        puts "○ All worktrees at expected paths."
       end
     end
   end
