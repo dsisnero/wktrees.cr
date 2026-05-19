@@ -1,0 +1,13 @@
+[global]
+# Exclude directories not committed to this repo
+exclude = ["temp", "vendor", ".git"]
+
+[MD013]
+# Line length - disabled (long URLs, code blocks, etc.)
+ignore_code_blocks = true
+ignore_tables = true
+ignore_urls = true
+
+[MD033]
+# Inline HTML - allowed for tables and badges
+allowed_elements = ["br", "img", "details", "summary"]

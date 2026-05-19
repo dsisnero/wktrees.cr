@@ -1,0 +1,4 @@
+[submodule "vendor/worktrunk"]
+	path = vendor/worktrunk
+	url = https://github.com/max-sixty/worktrunk.git
+	branch = main

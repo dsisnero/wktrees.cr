@@ -1,0 +1,18 @@
+name: work_trees
+version: 0.1.0
+
+authors:
+  - Dominic Sisneros <dsisnero@gmail.com>
+
+targets:
+  work_trees:
+    main: src/work_trees.cr
+
+crystal: '>= 1.20.2'
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+    version: ~> 1.0
+
+license: MIT
