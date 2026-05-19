@@ -1077,9 +1077,11 @@ module WorkTrees
         arg = args[1]?
         shell_type = if arg
                        case arg
-                       when "zsh"  then :zsh
-                       when "fish" then :fish
-                       else             :bash
+                       when "zsh", "z"         then :zsh
+                       when "fish", "f"        then :fish
+                       when "nu", "nushell"    then :nu
+                       when "ps", "powershell" then :ps
+                       else                         :bash
                        end
                      else
                        shell_type_from_env
@@ -1384,6 +1386,8 @@ module WorkTrees
         :zsh
       elsif shell_path.includes?("fish")
         :fish
+      elsif shell_path.includes?("nu")
+        :nu
       else
         :bash
       end
