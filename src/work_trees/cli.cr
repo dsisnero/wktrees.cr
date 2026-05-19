@@ -523,8 +523,10 @@ module WorkTrees
         step_rebase(args[1..])
       when "push"
         step_push(args[1..])
+      when "for-each"
+        step_for_each(args[1..])
       else
-        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push]"
+        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each]"
         exit 1
       end
     end
@@ -663,6 +665,58 @@ module WorkTrees
       Cmd.new("git").args(["checkout", target_branch]).current_dir(target_path).run!
       Cmd.new("git").args(["merge", "--ff-only", branch]).current_dir(target_path).run!
       puts "✓ Fast-forwarded #{target_branch} to #{branch}"
+    end
+
+    private def self.step_for_each(args : Array(String))
+      command = args.join(" ")
+
+      OptionParser.parse(args) do |parser|
+        parser.banner = "Usage: work_trees step for-each <command>"
+        parser.on("-h", "--help", "Show this help") do
+          puts parser
+          exit 0
+        end
+      end
+
+      if command.strip.empty?
+        STDERR.puts "Error: No command specified. Usage: work_trees step for-each <command>"
+        exit 1
+      end
+
+      repo = Git::Repository.current
+      worktrees = repo.list_worktrees
+      current_wt = repo.current_worktree
+      current_branch = current_wt.current_branch
+
+      puts "◎ Running '#{command}' in #{worktrees.size} worktree(s)..."
+      puts ""
+
+      worktrees.each do |worktree|
+        branch = worktree.branch || "(detached)"
+        marker = worktree.branch == current_branch ? "@" : " "
+
+        print "#{marker} #{branch}..."
+
+        result = Cmd.new("sh")
+          .args(["-c", command])
+          .current_dir(worktree.path)
+          .run
+
+        if result.success?
+          puts " ✓"
+          unless result.stdout.strip.empty?
+            result.stdout.each_line { |line| puts "    #{line}" }
+          end
+        else
+          puts " ✗ (exit #{result.exit_code})"
+          unless result.stderr.strip.empty?
+            result.stderr.each_line { |line| puts "    #{line}" }
+          end
+        end
+      end
+
+      puts ""
+      puts "○ Done."
     end
 
     private def self.generate_commit_message(repo) : String
