@@ -323,25 +323,21 @@ module WorkTrees
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
 
-      # Load merged config (user + project) for path template
+      # Resolve the target branch (shortcuts, fzf picker, or explicit)
+      resolved, create = resolve_switch_target(repo, branch, current_branch, create)
+
+      # Save current branch as previous (for - shortcut)
+      if resolved != current_branch
+        Git::BranchResolver.save_previous(current_branch)
+      end
+
+      # Load merged config for path template
       merged_config = Config.load_merged(repo.discovery_path)
       path_template = if override = path_template_override
                         override
                       else
                         merged_config.worktree_path_template
                       end
-
-      # Resolve branch shortcuts
-      resolved = if b = branch
-                   Git::BranchResolver.resolve(b)
-                 else
-                   current_branch
-                 end
-
-      # Save current branch as previous (for - shortcut)
-      if resolved != current_branch
-        Git::BranchResolver.save_previous(current_branch)
-      end
 
       worktree_path : String? = nil
 
@@ -363,6 +359,56 @@ module WorkTrees
     private def self.emit_cd_directive(path : String) : Nil
       if file = ENV["WORKTRUNK_DIRECTIVE_CD_FILE"]?
         File.write(file, path)
+      end
+    end
+
+    private def self.resolve_switch_target(repo, branch, current_branch, create)
+      # Interactive picker: if no branch and no --create, use fzf
+      if !branch && !create
+        if selected = interactive_picker(repo, current_branch)
+          # Auto-create if worktree doesn't exist
+          if selected != current_branch && !repo.worktree_for_branch(selected)
+            return {selected, true}
+          end
+          return {selected, false}
+        else
+          exit 0
+        end
+      end
+
+      # Resolve branch shortcuts
+      resolved = if b = branch
+                   Git::BranchResolver.resolve(b)
+                 else
+                   current_branch
+                 end
+      {resolved, create}
+    end
+
+    private def self.interactive_picker(repo, current_branch) : String?
+      worktrees = repo.list_worktrees
+      return nil if worktrees.empty?
+
+      # Build fzf input: branch | worktree name | path
+      lines = worktrees.compact_map do |worktree|
+        branch = worktree.branch
+        next unless branch
+        marker = branch == current_branch ? "@" : " "
+        "#{marker} #{branch.ljust(30)} #{worktree.dir_name.ljust(20)} #{worktree.path}"
+      end
+
+      input = lines.join('\n')
+      result = Cmd.new("fzf")
+        .args(["--height", "40%", "--reverse", "--inline-info"])
+        .stdin_data(input)
+        .run
+
+      return nil if result.stdout.strip.empty? || !result.success?
+
+      # Parse selected line: extract branch name
+      selected = result.stdout.strip
+      if m = selected.match(/^\s*[@ ]\s*(\S+)/)
+        m[1]
       end
     end
 
