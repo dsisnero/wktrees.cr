@@ -41,10 +41,41 @@ module WorkTrees
         puts "work_trees #{WorkTrees::VERSION}"
         exit 0
       else
-        STDERR.puts "Unknown command: #{command}"
-        STDERR.puts "Run 'work_trees help' for usage."
-        exit 1
+        dispatch_unknown(command, command_args)
       end
+    end
+
+    private def self.dispatch_unknown(command, args)
+      # Check if command is a configured alias
+      if run_alias(command, args)
+        exit 0
+      end
+
+      STDERR.puts "Unknown command: #{command}"
+      STDERR.puts "Run 'work_trees help' for usage."
+      exit 1
+    end
+
+    private def self.run_alias(name, args) : Bool
+      config_path = Config.default_config_path
+      return false unless File.exists?(config_path)
+
+      aliases = Config.parse_aliases(File.read(config_path))
+      return false unless aliases.has_key?(name)
+
+      cmd = aliases[name]
+      puts "▶ #{name}: #{cmd}"
+
+      # Parse the alias body as a work_trees command
+      parts = cmd.split(' ', 2)
+      alias_cmd = parts[0]
+      alias_args = parts[1]?.try(&.split(' ')) || [] of String
+
+      # Dispatch back through the CLI
+      CLI.run([alias_cmd] + alias_args + args)
+      true
+    rescue
+      false
     end
 
     def self.print_help
