@@ -21,12 +21,15 @@
 
 ### 0.2 Core Types & Errors
 - [ ] Error hierarchy (`GitError`, `CommandError`, `WorktrunkError`, `Diagnostic` trait)
-  - `src/git/error.rs` (2444 lines) → `src/work_trees/git_error.cr`
+  - `src/git/error.rs` (2444 lines) → `src/work_trees/git/error.cr`
 - [ ] Repository type with caching (`src/git/repository/mod.rs` 1704 lines)
   - `src/git/repository/working_tree.rs`, `branch.rs`, `branches.rs`, `worktrees.rs`
   - `ref_snapshot.rs` (1383 lines), `sha_cache.rs`
 - [ ] WorktreeInfo, BranchRef, Branch types (`src/git/mod.rs` 1172 lines)
-- [ ] `shell_exec::Cmd` builder (`src/shell_exec.rs` 1962 lines)
+- [x] `ShellExec::Cmd` builder (`src/shell_exec.rs` 1962 lines) → `src/work_trees/cmd.cr`
+  - Basic Cmd builder with run, run!, args, current_dir, context, stdin_bytes
+  - 7 specs passing
+  - Deferred: shell wrapping, signal forwarding, trace logging, process groups
 - [ ] Output formatting (`src/output/`, `src/styling/`)
 - [ ] Tracing/logging infrastructure (`src/trace/`, `src/log_files.rs`, `src/command_log.rs`)
 
@@ -35,7 +38,9 @@
   - `src/work_trees/template/filters.cr` — 27 specs, all passing
   - `src/work_trees/template/codename.cr` — 9 specs, all passing
   - **Codename parity verified:** SHA-256 output matches upstream for all 6 test vectors
-- [ ] Template variable types & context structs
+- [x] Template variable types & context structs
+  - `src/work_trees/template/context.cr` — 7 specs, all passing
+  - `HookType`, `ValidationScope`, `ACTIVE_VARS`, `REPO_VARS`, etc.
 - [ ] Shell template generation (bash, zsh, fish, nushell, powershell) via ECR
 - [ ] Runtime template expansion for user/project config templates
 - [ ] `ShellArgs` equivalent for alias args handling
