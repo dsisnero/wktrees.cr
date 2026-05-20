@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Crystal ${{ matrix.crystal }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        crystal: ["1.20.2", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Crystal
+        uses: oprypin/install-crystal@v1
+        with:
+          crystal: ${{ matrix.crystal }}
+
+      - name: Install shards
+        run: shards install
+
+      - name: Format check
+        run: crystal tool format --check src spec
+
+      - name: Lint
+        run: bin/ameba src spec
+        shell: bash
+
+      - name: Test
+        run: crystal spec --order random
+
+      - name: Build binary
+        run: crystal build src/cli.cr -o bin/work_trees --release
+
+      - name: Verify binary
+        run: bin/work_trees --version
+        shell: bash
+
+  build-release:
+    name: Build release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Crystal
+        uses: oprypin/install-crystal@v1
+        with:
+          crystal: latest
+
+      - name: Install shards
+        run: shards install
+
+      - name: Build release binary
+        run: crystal build src/cli.cr -o bin/work_trees --release
+        env:
+          CRYSTAL_FLAGS: --static
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: work_trees-${{ matrix.os }}
+          path: bin/work_trees*
