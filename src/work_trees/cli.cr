@@ -610,8 +610,19 @@ module WorkTrees
         unless keep_branch
           mode = force_delete ? Git::BranchDeletionMode::ForceDelete : Git::BranchDeletionMode::SafeDelete
           begin
-            repo.delete_branch(target, mode)
-            puts "✓ Deleted branch #{target}"
+            # Check integration before deleting
+            safe = if mode.safe_delete?
+                     Git::Integration.check(repo, target, repo.default_branch)
+                   else
+                     true
+                   end
+            if safe
+              repo.delete_branch(target, mode)
+              puts "✓ Deleted branch #{target}"
+            else
+              STDERR.puts "! Branch #{target} is not merged into #{repo.default_branch}"
+              STDERR.puts "  Use -D to force delete, or merge first."
+            end
           rescue ex : Git::CommandError | CmdError
             STDERR.puts "! Could not delete branch: #{ex.message}"
           end
@@ -1079,8 +1090,12 @@ module WorkTrees
       if wt_path = repo.worktree_for_branch(branch)
         begin
           repo.remove_worktree(wt_path)
-          repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
-          puts "✓ Removed #{branch} worktree and branch"
+          if Git::Integration.check(repo, branch, target_branch)
+            repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
+            puts "✓ Removed #{branch} worktree and branch"
+          else
+            puts "✓ Removed #{branch} worktree (branch kept — not integrated)"
+          end
           if target_path = repo.worktree_for_branch(target_branch)
             emit_cd_directive(target_path)
           end
