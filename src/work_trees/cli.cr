@@ -9,6 +9,8 @@ require "time"
 module WorkTrees
   module CLI
     def self.run(args = ARGV)
+      return if handle_global_flags(args)
+
       if args.empty?
         print_help
         exit 1
@@ -24,8 +26,6 @@ module WorkTrees
         Commands.switch(command_args)
       when "remove"
         Commands.remove(command_args)
-      when "shell"
-        Commands.shell(command_args)
       when "config"
         Commands.config(command_args)
       when "hook"
@@ -34,15 +34,27 @@ module WorkTrees
         Commands.step(command_args)
       when "merge"
         Commands.merge(command_args)
-      when "help", "--help", "-h"
-        print_help
-        exit 0
-      when "--version", "-V"
-        puts "work_trees #{WorkTrees::VERSION}"
-        exit 0
+      when "shell"
+        Commands.shell(command_args)
       else
         dispatch_unknown(command, command_args)
       end
+    end
+
+    # Handle global flags. Returns true if handled (should exit).
+    private def self.handle_global_flags(args) : Bool
+      if args.delete("--help") || args.delete("-h")
+        print_help
+        return true
+      end
+      if args.delete("--version") || args.delete("-V")
+        puts "work_trees #{WorkTrees::VERSION}"
+        return true
+      end
+      if args.delete("--yes") || args.delete("-y")
+        ENV["WORKTREES_YES"] = "1"
+      end
+      false
     end
 
     private def self.dispatch_unknown(command, args)
@@ -302,6 +314,7 @@ module WorkTrees
       branch : String? = nil
       execute_cmd : String? = nil
       path_template_override : String? = nil
+      no_hooks = false
 
       OptionParser.parse(args) do |parser|
         parser.banner = "Usage: work_trees switch [options] [branch]"
@@ -309,6 +322,7 @@ module WorkTrees
         parser.on("-b BASE", "--base=BASE", "Base branch for the new worktree") { |b| base_branch = b }
         parser.on("-x CMD", "--execute=CMD", "Execute a command after switching") { |cmd| execute_cmd = cmd }
         parser.on("-p PATH", "--path-template=PATH", "Worktree path template") { |tpl| path_template_override = tpl }
+        parser.on("--no-hooks", "Skip running hooks") { no_hooks = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -320,6 +334,7 @@ module WorkTrees
 
       exec = execute_cmd
       repo = Git::Repository.current
+      ENV["WORKTREES_NO_HOOKS"] = "1" if no_hooks
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
 
@@ -462,7 +477,7 @@ module WorkTrees
         end
         puts "✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}"
         emit_cd_directive(worktree_path)
-      rescue ex : Git::CommandError
+      rescue ex : Git::CommandError | CmdError
         STDERR.puts "✗ #{ex.message}"
         exit 1
       end
@@ -473,7 +488,12 @@ module WorkTrees
       worktree_path
     end
 
+    private def self.quiet? : Bool
+      ENV["WORKTREES_YES"]? == "1"
+    end
+
     private def self.run_hooks(section : String, vars : Hash(String, String))
+      return if ENV["WORKTREES_NO_HOOKS"]? == "1"
       repo = Git::Repository.current rescue nil
       hooks = [] of Config::HookCommand
 
@@ -592,11 +612,11 @@ module WorkTrees
           begin
             repo.delete_branch(target, mode)
             puts "✓ Deleted branch #{target}"
-          rescue ex : Git::CommandError
+          rescue ex : Git::CommandError | CmdError
             STDERR.puts "! Could not delete branch: #{ex.message}"
           end
         end
-      rescue ex : Git::CommandError
+      rescue ex : Git::CommandError | CmdError
         STDERR.puts "✗ #{ex.message}"
         exit 1
       end
@@ -743,7 +763,7 @@ module WorkTrees
       begin
         repo.run_command(["rebase", target_branch])
         puts "✓ Rebased onto #{target_branch}"
-      rescue ex : Git::CommandError
+      rescue ex : Git::CommandError | CmdError
         STDERR.puts "✗ Rebase conflict: #{ex.message}"
         STDERR.puts "Resolve conflicts and run: git rebase --continue"
         exit 1
@@ -889,7 +909,7 @@ module WorkTrees
             repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
             puts "  ✓ Pruned #{branch}"
             removed += 1
-          rescue ex : Git::CommandError
+          rescue ex : Git::CommandError | CmdError
             puts "  ! Could not prune #{branch}: #{ex.message}"
             skipped += 1
           end
@@ -1036,7 +1056,7 @@ module WorkTrees
       begin
         repo.run_command(["rebase", target_branch])
         puts "  ✓ Rebased"
-      rescue ex : Git::CommandError
+      rescue ex : Git::CommandError | CmdError
         STDERR.puts "! Rebase conflict: #{ex.message}"
         STDERR.puts "Resolve conflicts and run: git rebase --continue"
         exit 1
@@ -1064,7 +1084,7 @@ module WorkTrees
           if target_path = repo.worktree_for_branch(target_branch)
             emit_cd_directive(target_path)
           end
-        rescue ex : Git::CommandError
+        rescue ex : Git::CommandError | CmdError
           puts "! Could not remove worktree: #{ex.message}"
         end
       end
