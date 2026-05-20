@@ -1037,7 +1037,7 @@ module WorkTrees
 
       # Try LLM generation if configured
       if llm = config.llm_command
-        msg = try_llm_commit(llm, repo)
+        msg = try_llm_commit(llm, config, repo)
         return msg if msg
       end
 
@@ -1045,7 +1045,7 @@ module WorkTrees
       branch_commit_message(branch)
     end
 
-    private def self.try_llm_commit(llm : String, repo) : String?
+    private def self.try_llm_commit(llm : String, config : Config::UserConfig, repo) : String?
       diff = Cmd.new("git")
         .args(["diff", "--cached"])
         .current_dir(repo.discovery_path)
@@ -1054,7 +1054,15 @@ module WorkTrees
 
       return nil if diff.strip.empty?
 
-      prompt = "Generate a concise conventional commit message for this diff. Use types: feat, fix, docs, refactor, test, chore, perf, ci. Return ONLY the commit message, no explanation.\n\ndiff:\n#{diff}"
+      # Build prompt from config template or default
+      base = config.llm_template || "Generate a concise conventional commit message for this diff. Use types: feat, fix, docs, refactor, test, chore, perf, ci. Return ONLY the commit message, no explanation."
+      prompt = "#{base}\n\ndiff:\n#{diff}"
+
+      # Append user guidance
+      if append = config.llm_template_append
+        prompt += "\n\n#{append}"
+      end
+
       result = Cmd.new(llm)
         .stdin_data(prompt)
         .run

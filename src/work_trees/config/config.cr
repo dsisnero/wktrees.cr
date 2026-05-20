@@ -9,6 +9,8 @@ module WorkTrees
     class UserConfig
       property worktree_path_template : String
       property llm_command : String?
+      property llm_template : String?
+      property llm_template_append : String?
 
       DEFAULT_PATH_TEMPLATE = "~/worktrees/{{ branch | sanitize }}"
 
@@ -24,6 +26,7 @@ module WorkTrees
     class ProjectConfig
       property worktree_path_template : String?
       property llm_command : String?
+      property llm_template_append : String?
       property hooks : Hash(String, Hash(String, String))
 
       def initialize(
@@ -41,6 +44,8 @@ module WorkTrees
       merged = UserConfig.new
       merged.worktree_path_template = project.worktree_path_template || user.worktree_path_template
       merged.llm_command = project.llm_command || user.llm_command
+      merged.llm_template = user.llm_template
+      merged.llm_template_append = user.llm_template_append
       merged
     end
 
@@ -73,6 +78,10 @@ module WorkTrees
             raw_gen = gen.raw.as(Hash)
             cmd = raw_gen["command"]?
             config.llm_command = cmd.try(&.raw.to_s) if cmd
+            tpl = raw_gen["template"]?
+            config.llm_template = tpl.try(&.raw.to_s) if tpl
+            append = raw_gen["template-append"]?
+            config.llm_template_append = append.try(&.raw.to_s) if append
           end
         end
       end
@@ -122,6 +131,8 @@ module WorkTrees
             raw_gen = gen.raw.as(Hash)
             cmd = raw_gen["command"]?
             config.llm_command = cmd.try(&.raw.to_s) if cmd
+            append = raw_gen["template-append"]?
+            config.llm_template_append = append.try(&.raw.to_s) if append
           end
         end
       end
