@@ -5,6 +5,7 @@
 require "option_parser"
 require "json"
 require "time"
+require "wait_group"
 
 module WorkTrees
   module CLI
@@ -186,22 +187,22 @@ module WorkTrees
       repo = Git::Repository.current
       default_branch = repo.default_branch
 
-      # Compute stats concurrently using fibers + channels
-      chan = Channel(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
+      # Compute stats concurrently using fibers
+      wg = WaitGroup.new
+      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
+      mutex = Mutex.new
 
       worktrees.each_with_index do |worktree, idx|
-        spawn do
+        wg.spawn do
           branch = worktree.branch || "(detached)"
           short_commit = worktree.head[0, 7]
           status, changes, ahead, behind, remote_status = worktree_stats(repo, worktree, default_branch)
-          chan.send({idx, branch, short_commit, status, changes, ahead, behind, remote_status})
+          mutex.synchronize { results << {idx, branch, short_commit, status, changes, ahead, behind, remote_status} }
         end
       end
 
-      # Collect results in order
-      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
-      worktrees.size.times { results << chan.receive }
-      results.sort_by!(&.[0]) # Sort by original index
+      wg.wait
+      results.sort_by!(&.[0])
 
       # Header
       puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
@@ -525,20 +526,24 @@ module WorkTrees
 
       return if hooks.empty?
 
-      # Run hooks concurrently using fibers + channels
+      # Run hooks concurrently using WaitGroup + channel for display ordering
+      wg = WaitGroup.new
       chan = Channel(Tuple(String, String, Bool, Int32)).new(hooks.size)
 
       hooks.each do |hook|
-        spawn do
+        wg.spawn do
           expanded = hook.expand(vars)
           result = Cmd.new("sh").args(["-c", expanded]).run
           chan.send({hook.name, expanded, result.success?, result.exit_code})
         end
       end
 
+      wg.wait
+      chan.close
+
       # Collect and display results
-      hooks.size.times do
-        name, expanded, success, exit_code = chan.receive
+      while result = chan.receive?
+        name, expanded, success, exit_code = result
         puts "  ▶ #{name}: #{expanded}"
         if success
           puts "    ✓ #{name} completed"
