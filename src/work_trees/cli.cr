@@ -451,7 +451,15 @@ module WorkTrees
       puts "  Path: #{worktree_path}"
 
       begin
-        repo.run_command(["worktree", "add", "-b", branch, worktree_path, base])
+        # Try local branch first, then remote
+        if repo.run_command_check(["rev-parse", "--verify", "refs/heads/#{branch}"])
+          repo.run_command(["worktree", "add", "-b", branch, worktree_path, base])
+        else
+          # Branch doesn't exist locally — try fetching from origin
+          puts "  Fetching #{branch} from origin..."
+          Cmd.new("git").args(["fetch", "origin", "#{branch}:#{branch}"]).run
+          repo.run_command(["worktree", "add", "-b", branch, worktree_path, "origin/#{branch}"])
+        end
         puts "✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}"
         emit_cd_directive(worktree_path)
       rescue ex : Git::CommandError

@@ -42,16 +42,19 @@ module WorkTrees
         end
       end
 
-      # Resolve pr:N to branch name using gh CLI.
+      # Resolve pr:N to branch name using gh CLI, and fetch if needed.
       private def self.resolve_pr(input : String) : String
         number = input.lchop(PR_PREFIX)
         result = Cmd.new("gh")
           .args(["pr", "view", number, "--json", "headRefName", "--jq", ".headRefName"])
           .run
         if result.success? && !result.stdout.strip.empty?
-          result.stdout.strip
+          branch = result.stdout.strip
+          # Ensure the branch exists locally
+          ensure_branch_exists(branch)
+          branch
         else
-          input # Fall back to pr:N if gh not available
+          input
         end
       end
 
@@ -62,10 +65,22 @@ module WorkTrees
           .args(["mr", "view", number, "--json", "sourceBranch", "--jq", ".sourceBranch"])
           .run
         if result.success? && !result.stdout.strip.empty?
-          result.stdout.strip
+          branch = result.stdout.strip
+          ensure_branch_exists(branch)
+          branch
         else
           input
         end
+      end
+
+      # Ensure a branch exists locally, fetching from remote if needed.
+      private def self.ensure_branch_exists(branch : String) : Nil
+        repo = Repository.current
+        return if repo.run_command_check(["rev-parse", "--verify", "refs/heads/#{branch}"])
+        # Try to fetch from origin
+        Cmd.new("git")
+          .args(["fetch", "origin", "#{branch}:#{branch}"])
+          .run
       end
 
       # Save the current branch as the previous branch.
