@@ -6,6 +6,7 @@ require "option_parser"
 require "json"
 require "time"
 require "wait_group"
+require "colorize"
 
 module WorkTrees
   module CLI
@@ -30,7 +31,7 @@ module WorkTrees
       when "config"
         Commands.config(command_args)
       when "hook"
-        Commands.hook(command_args)
+        Commands.hook_command(command_args)
       when "step"
         Commands.step(command_args)
       when "merge"
@@ -488,10 +489,10 @@ module WorkTrees
           Cmd.new("git").args(["fetch", "origin", "#{branch}:#{branch}"]).run
           repo.run_command(["worktree", "add", "-b", branch, worktree_path, "origin/#{branch}"])
         end
-        puts "✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}"
+        puts green("✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}")
         emit_cd_directive(worktree_path)
       rescue ex : Git::CommandError | CmdError
-        STDERR.puts "✗ #{ex.message}"
+        STDERR.puts red("✗ #{ex.message}")
         exit 1
       end
 
@@ -503,6 +504,27 @@ module WorkTrees
 
     private def self.quiet? : Bool
       ENV["WORKTREES_YES"]? == "1"
+    end
+
+    # Color helpers
+    private def self.green(text) : String
+      text.colorize.green.to_s
+    end
+
+    private def self.red(text) : String
+      text.colorize.red.to_s
+    end
+
+    private def self.yellow(text) : String
+      text.colorize.yellow.to_s
+    end
+
+    private def self.bold(text) : String
+      text.colorize.bold.to_s
+    end
+
+    private def self.dim(text) : String
+      text.colorize.dim.to_s
     end
 
     private def self.run_hooks(section : String, vars : Hash(String, String))
@@ -539,11 +561,11 @@ module WorkTrees
       wg = WaitGroup.new
       chan = Channel(Tuple(String, String, Bool, Int32)).new(hooks.size)
 
-      hooks.each do |hook|
+      hooks.each do |hook_cmd|
         wg.spawn do
-          expanded = hook.expand(vars)
+          expanded = hook_cmd.expand(vars)
           result = Cmd.new("sh").args(["-c", expanded]).run
-          chan.send({hook.name, expanded, result.success?, result.exit_code})
+          chan.send({hook_cmd.name, expanded, result.success?, result.exit_code})
         end
       end
 
@@ -554,9 +576,9 @@ module WorkTrees
         name, expanded, success, exit_code = result
         puts "  ▶ #{name}: #{expanded}"
         if success
-          puts "    ✓ #{name} completed"
+          puts green("    ✓ #{name} completed")
         else
-          STDERR.puts "    ✗ #{name} failed (exit #{exit_code})"
+          STDERR.puts red("    ✗ #{name} failed (exit #{exit_code})")
         end
       end
     end
@@ -567,7 +589,7 @@ module WorkTrees
         puts "  ▶ #{hook.name}: #{expanded}"
         result = Cmd.new("sh").args(["-c", expanded]).run
         if result.success?
-          puts "    ✓ #{hook.name} completed"
+          puts green("    ✓ #{name} completed")
         else
           STDERR.puts "    ✗ #{hook.name} failed (exit #{result.exit_code})"
           break # Stop pipeline on failure
@@ -678,7 +700,7 @@ module WorkTrees
           end
         end
       rescue ex : Git::CommandError | CmdError
-        STDERR.puts "✗ #{ex.message}"
+        STDERR.puts red("✗ #{ex.message}")
         exit 1
       end
     end
@@ -762,7 +784,7 @@ module WorkTrees
                        generate_commit_message(repo)
                      end
         repo.run_command(["commit", "-m", commit_msg])
-        puts "✓ Committed: #{commit_msg.lines.first}"
+        puts green("✓ Committed: #{commit_msg.lines.first}")
 
         # Post-commit hooks
         commit_vars["commit"] = commit_msg
@@ -1562,7 +1584,7 @@ module WorkTrees
       FISH
     end
 
-    def self.hook(args : Array(String))
+    def self.hook_command(args : Array(String))
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
