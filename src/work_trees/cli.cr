@@ -186,17 +186,29 @@ module WorkTrees
       repo = Git::Repository.current
       default_branch = repo.default_branch
 
+      # Compute stats concurrently using fibers + channels
+      chan = Channel(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
+
+      worktrees.each_with_index do |worktree, idx|
+        spawn do
+          branch = worktree.branch || "(detached)"
+          short_commit = worktree.head[0, 7]
+          status, changes, ahead, behind, remote_status = worktree_stats(repo, worktree, default_branch)
+          chan.send({idx, branch, short_commit, status, changes, ahead, behind, remote_status})
+        end
+      end
+
+      # Collect results in order
+      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
+      worktrees.size.times { results << chan.receive }
+      results.sort_by!(&.[0]) # Sort by original index
+
       # Header
       puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
+      puts "-" * 100
 
-      worktrees.each do |worktree|
-        marker = worktree.branch == current_branch ? "@" : " "
-        branch = worktree.branch || "(detached)"
-        short_commit = worktree.head[0, 7]
-
-        # Compute status per worktree
-        status, changes, ahead, behind, remote_status = worktree_stats(repo, worktree, default_branch)
-
+      results.each do |_, branch, short_commit, status, changes, ahead, behind, remote_status|
+        marker = branch == current_branch ? "@" : " "
         puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % [
           marker, truncate(branch, 25), status, changes,
           ahead_to_s(ahead), behind_to_s(behind), short_commit, remote_status,
@@ -513,14 +525,25 @@ module WorkTrees
 
       return if hooks.empty?
 
+      # Run hooks concurrently using fibers + channels
+      chan = Channel(Tuple(String, String, Bool, Int32)).new(hooks.size)
+
       hooks.each do |hook|
-        expanded = hook.expand(vars)
-        puts "  ▶ #{hook.name}: #{expanded}"
-        result = Cmd.new("sh").args(["-c", expanded]).run
-        if result.success?
-          puts "    ✓ #{hook.name} completed"
+        spawn do
+          expanded = hook.expand(vars)
+          result = Cmd.new("sh").args(["-c", expanded]).run
+          chan.send({hook.name, expanded, result.success?, result.exit_code})
+        end
+      end
+
+      # Collect and display results
+      hooks.size.times do
+        name, expanded, success, exit_code = chan.receive
+        puts "  ▶ #{name}: #{expanded}"
+        if success
+          puts "    ✓ #{name} completed"
         else
-          STDERR.puts "    ✗ #{hook.name} failed (exit #{result.exit_code})"
+          STDERR.puts "    ✗ #{name} failed (exit #{exit_code})"
         end
       end
     end
