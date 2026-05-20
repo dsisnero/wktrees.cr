@@ -193,15 +193,15 @@ module WorkTrees
 
       # Phase 2: Compute stats concurrently
       wg = WaitGroup.new
-      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
+      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String, String)).new(worktrees.size)
       mutex = Mutex.new
 
       worktrees.each_with_index do |worktree, idx|
         wg.spawn do
           branch = worktree.branch || "(detached)"
           short_commit = worktree.head[0, 7]
-          status, changes, ahead, behind, remote_status = worktree_stats(repo, worktree, default_branch)
-          mutex.synchronize { results << {idx, branch, short_commit, status, changes, ahead, behind, remote_status} }
+          status, changes, ahead, behind, remote_status, ci = worktree_stats(repo, worktree, default_branch)
+          mutex.synchronize { results << {idx, branch, short_commit, status, changes, ahead, behind, remote_status, ci} }
         end
       end
 
@@ -215,16 +215,16 @@ module WorkTrees
     end
 
     private def self.show_skeleton(worktrees, current_branch)
-      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
-      puts "-" * 100
+      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age", "CI"]
+      puts "-" * 110
 
       worktrees.each do |worktree|
         branch = worktree.branch || "(detached)"
         marker = worktree.branch == current_branch ? "@" : " "
         short_commit = worktree.head[0, 7]
-        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % [
+        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % [
           marker, truncate(branch, 25), dim("..."), dim("..."),
-          dim("..."), dim("..."), short_commit, dim("..."),
+          dim("..."), dim("..."), short_commit, dim("..."), dim("..."),
         ]
       end
       puts ""
@@ -237,14 +237,14 @@ module WorkTrees
     end
 
     private def self.render_full_table(results, current_branch, default_branch, count)
-      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
-      puts "-" * 100
+      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age", "CI"]
+      puts "-" * 110
 
-      results.each do |_, branch, short_commit, status, changes, ahead, behind, remote_status|
+      results.each do |_, branch, short_commit, status, changes, ahead, behind, remote_status, ci_status|
         marker = branch == current_branch ? "@" : " "
-        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % [
+        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % [
           marker, truncate(branch, 25), status, changes,
-          ahead_to_s(ahead), behind_to_s(behind), short_commit, remote_status,
+          ahead_to_s(ahead), behind_to_s(behind), short_commit, remote_status, ci_status,
         ]
       end
 
@@ -254,7 +254,7 @@ module WorkTrees
 
     private def self.worktree_stats(repo, worktree, default_branch)
       branch = worktree.branch
-      return {"-", "-", 0, 0, ""} unless branch
+      return {"-", "-", 0, 0, "", ""} unless branch
 
       # Check working tree status
       wt_path = worktree.path
@@ -266,39 +266,43 @@ module WorkTrees
 
       status = dirty.empty? ? "clean" : "+"
 
-      # Lines changed since branching (diff from default to branch)
+      # Lines changed since branching
       diff_result = Cmd.new("git")
         .args(["diff", "--shortstat", "#{default_branch}...#{branch}"])
         .run
       changes = if diff_result.success?
                   stat = diff_result.stdout.strip
-                  if stat.empty?
-                    ""
-                  else
-                    format_shortstat(stat)
-                  end
+                  stat.empty? ? "" : format_shortstat(stat)
                 else
                   "-"
                 end
 
-      # Commits ahead of default
+      # Commits ahead/behind
       ahead = count_commits_ahead(default_branch, branch)
-
-      # Commits behind default
-      behind = if branch == default_branch
-                 0
-               else
-                 count_commits_ahead(branch, default_branch)
-               end
+      behind = branch == default_branch ? 0 : count_commits_ahead(branch, default_branch)
 
       # Remote tracking
-      remote_status = if branch == default_branch
-                        remote_ahead(repo)
-                      else
-                        ""
-                      end
+      remote_status = branch == default_branch ? remote_ahead(repo) : ""
 
-      {status, changes, ahead, behind, remote_status}
+      # CI status (GitHub Actions)
+      ci = ci_status(branch)
+
+      {status, changes, ahead, behind, remote_status, ci}
+    end
+
+    private def self.ci_status(branch : String) : String
+      result = Cmd.new("gh")
+        .args(["run", "list", "--branch", branch, "--limit", "1", "--json", "status,conclusion", "--jq", ".[0].conclusion // .[0].status"])
+        .run
+      return "" if !result.success? || result.stdout.strip.empty?
+
+      case result.stdout.strip
+      when "success"   then green("✓")
+      when "failure"   then red("✗")
+      when "cancelled" then red("✗")
+      when "skipped"   then dim("−")
+      else                  dim("○") # pending, in_progress, etc.
+      end
     end
 
     private def self.count_commits_ahead(from : String, to : String) : Int32
