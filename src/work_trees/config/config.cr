@@ -128,9 +128,10 @@ module WorkTrees
 
       # Parse hook sections
       HOOK_SECTIONS.each do |section|
-        hooks = parse_hooks(toml_str, section)
-        unless hooks.empty?
-          config.hooks[section] = hooks.map { |hook| {hook.name, hook.command} }.to_h
+        groups = parse_hooks(toml_str, section)
+        flat_hooks = groups.flat_map(&.hooks)
+        unless flat_hooks.empty?
+          config.hooks[section] = flat_hooks.map { |hook| {hook.name, hook.command} }.to_h
         end
       end
 

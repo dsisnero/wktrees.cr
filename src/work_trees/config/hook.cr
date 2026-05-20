@@ -20,31 +20,62 @@ module WorkTrees
       end
     end
 
+    # A group of hooks: either concurrent (named) or sequential (pipeline).
+    class HookGroup
+      getter kind : Symbol # :concurrent or :sequential
+      getter hooks : Array(HookCommand)
+
+      def initialize(@kind : Symbol, @hooks : Array(HookCommand))
+      end
+
+      def concurrent? : Bool
+        @kind == :concurrent
+      end
+
+      def sequential? : Bool
+        @kind == :sequential
+      end
+    end
+
     # Parse hooks from a TOML string for a given hook section.
     #
-    # Hook sections in TOML:
-    #   [pre-switch]
-    #   build = "cargo build"
-    #   test = "cargo test"
-    #
-    #   [post-start]
+    # Two formats supported:
+    #   [post-start]              # concurrent named hooks (single table)
     #   server = "npm run dev"
-    def self.parse_hooks(toml_str : String, section : String) : Array(HookCommand)
+    #   lint = "cargo clippy"
+    #
+    #   [[post-start]]             # sequential pipeline steps (array of tables)
+    #   step1 = "npm install"
+    #   [[post-start]]
+    #   step2 = "npm run build"
+    def self.parse_hooks(toml_str : String, section : String) : Array(HookGroup)
       data = TOML.parse(toml_str)
       section_data = data[section]?
-      return [] of HookCommand unless section_data
+      return [] of HookGroup unless section_data
 
-      hooks = [] of HookCommand
       raw = section_data.raw
 
       case raw
       when Hash
-        raw.each do |key, value|
-          hooks << HookCommand.new(key.to_s, value.raw.to_s)
+        # [section] format: named hooks run concurrently
+        cmds = raw.map { |key, value| HookCommand.new(key.to_s, value.raw.to_s) }
+        [HookGroup.new(:concurrent, cmds)]
+      when Array
+        # [[section]] format: pipeline steps run sequentially
+        steps = raw.compact_map do |item|
+          if item.raw.is_a?(Hash)
+            h = item.raw.as(Hash)
+            next unless h.size == 1
+            key = h.keys.first
+            val = h[key].raw.to_s
+            HookCommand.new(key.to_s, val)
+          end
         end
+        # Each step is its own sequential group
+        steps.map { |cmd| HookGroup.new(:sequential, [cmd]) }
+      else
+        [] of HookGroup
       end
-
-      hooks
     end
   end
 end

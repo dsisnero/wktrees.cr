@@ -508,25 +508,34 @@ module WorkTrees
     private def self.run_hooks(section : String, vars : Hash(String, String))
       return if ENV["WORKTREES_NO_HOOKS"]? == "1"
       repo = Git::Repository.current rescue nil
-      hooks = [] of Config::HookCommand
+      groups = [] of Config::HookGroup
 
       # Load from user config
       user_path = Config.default_config_path
       if File.exists?(user_path)
-        hooks.concat Config.parse_hooks(File.read(user_path), section)
+        groups.concat Config.parse_hooks(File.read(user_path), section)
       end
 
       # Load from project config
       if repo
         project_path = Config.project_config_path(repo.discovery_path)
         if File.exists?(project_path)
-          hooks.concat Config.parse_hooks(File.read(project_path), section)
+          groups.concat Config.parse_hooks(File.read(project_path), section)
         end
       end
 
-      return if hooks.empty?
+      return if groups.empty?
 
-      # Run hooks concurrently using WaitGroup + channel for display ordering
+      groups.each do |group|
+        if group.concurrent?
+          run_concurrent_hooks(group.hooks, vars)
+        else
+          run_sequential_hooks(group.hooks, vars)
+        end
+      end
+    end
+
+    private def self.run_concurrent_hooks(hooks, vars)
       wg = WaitGroup.new
       chan = Channel(Tuple(String, String, Bool, Int32)).new(hooks.size)
 
@@ -541,7 +550,6 @@ module WorkTrees
       wg.wait
       chan.close
 
-      # Collect and display results
       while result = chan.receive?
         name, expanded, success, exit_code = result
         puts "  ▶ #{name}: #{expanded}"
@@ -549,6 +557,20 @@ module WorkTrees
           puts "    ✓ #{name} completed"
         else
           STDERR.puts "    ✗ #{name} failed (exit #{exit_code})"
+        end
+      end
+    end
+
+    private def self.run_sequential_hooks(hooks, vars)
+      hooks.each do |hook|
+        expanded = hook.expand(vars)
+        puts "  ▶ #{hook.name}: #{expanded}"
+        result = Cmd.new("sh").args(["-c", expanded]).run
+        if result.success?
+          puts "    ✓ #{hook.name} completed"
+        else
+          STDERR.puts "    ✗ #{hook.name} failed (exit #{result.exit_code})"
+          break # Stop pipeline on failure
         end
       end
     end
@@ -1277,16 +1299,18 @@ module WorkTrees
 
       puts "[hooks]"
       Config::HOOK_SECTIONS.each do |section|
-        hooks = Config.parse_hooks(File.read(user_path), section) rescue [] of Config::HookCommand
-        project_hooks = if project_config && repo
-                          project_path = Config.project_config_path(repo.discovery_path)
-                          Config.parse_hooks(File.read(project_path), section) rescue [] of Config::HookCommand
-                        else
-                          [] of Config::HookCommand
-                        end
-        next if hooks.empty? && project_hooks.empty?
+        user_groups = Config.parse_hooks(File.read(user_path), section) rescue [] of Config::HookGroup
+        project_groups = if project_config && repo
+                           project_path = Config.project_config_path(repo.discovery_path)
+                           Config.parse_hooks(File.read(project_path), section) rescue [] of Config::HookGroup
+                         else
+                           [] of Config::HookGroup
+                         end
+        user_hooks = user_groups.flat_map(&.hooks)
+        project_hooks = project_groups.flat_map(&.hooks)
+        next if user_hooks.empty? && project_hooks.empty?
         puts "  [#{section}]"
-        hooks.each { |hook| puts "    user.#{hook.name}: #{hook.command}" }
+        user_hooks.each { |hook| puts "    user.#{hook.name}: #{hook.command}" }
         project_hooks.each { |hook| puts "    project.#{hook.name}: #{hook.command}" }
       end
       puts ""
@@ -1572,7 +1596,8 @@ module WorkTrees
       if File.exists?(user_path)
         puts "User (#{user_path}):"
         Config::HOOK_SECTIONS.each do |section|
-          hooks = Config.parse_hooks(File.read(user_path), section)
+          groups = Config.parse_hooks(File.read(user_path), section)
+          hooks = groups.flat_map(&.hooks)
           unless hooks.empty?
             puts "  [#{section}]"
             hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
@@ -1585,7 +1610,8 @@ module WorkTrees
       if File.exists?(project_path)
         puts "Project (#{project_path}):"
         Config::HOOK_SECTIONS.each do |section|
-          hooks = Config.parse_hooks(File.read(project_path), section)
+          groups = Config.parse_hooks(File.read(project_path), section)
+          hooks = groups.flat_map(&.hooks)
           unless hooks.empty?
             puts "  [#{section}]"
             hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
