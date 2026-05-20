@@ -480,15 +480,8 @@ module WorkTrees
       puts "  Path: #{worktree_path}"
 
       begin
-        # Try local branch first, then remote
-        if repo.run_command_check(["rev-parse", "--verify", "refs/heads/#{branch}"])
-          repo.run_command(["worktree", "add", "-b", branch, worktree_path, base])
-        else
-          # Branch doesn't exist locally — try fetching from origin
-          puts "  Fetching #{branch} from origin..."
-          Cmd.new("git").args(["fetch", "origin", "#{branch}:#{branch}"]).run
-          repo.run_command(["worktree", "add", "-b", branch, worktree_path, "origin/#{branch}"])
-        end
+        # Create a new branch from the base
+        repo.run_command(["worktree", "add", "-b", branch, worktree_path, base])
         puts green("✓ Created branch #{branch} from #{base} and worktree @ #{worktree_path}")
         emit_cd_directive(worktree_path)
       rescue ex : Git::CommandError | CmdError
@@ -672,8 +665,9 @@ module WorkTrees
         # Run pre-remove hooks
         run_hooks("pre-remove", remove_vars)
 
-        repo.remove_worktree(wt_path, force)
-        puts "✓ Removed worktree @ #{wt_path}"
+        repo.stage_worktree_removal(wt_path, force)
+        puts green("✓ Staged removal for worktree @ #{wt_path}")
+        puts dim("  (cleanup runs in background)")
 
         # Run post-remove hooks
         run_hooks("post-remove", remove_vars)
