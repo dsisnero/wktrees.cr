@@ -188,7 +188,10 @@ module WorkTrees
       repo = Git::Repository.current
       default_branch = repo.default_branch
 
-      # Compute stats concurrently using fibers
+      # Phase 1: Show skeleton immediately
+      show_skeleton(worktrees, current_branch)
+
+      # Phase 2: Compute stats concurrently
       wg = WaitGroup.new
       results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String)).new(worktrees.size)
       mutex = Mutex.new
@@ -205,7 +208,35 @@ module WorkTrees
       wg.wait
       results.sort_by!(&.[0])
 
-      # Header
+      # Phase 3: Clear skeleton and show real table
+      clear_skeleton(worktrees.size)
+
+      render_full_table(results, current_branch, default_branch, worktrees.size)
+    end
+
+    private def self.show_skeleton(worktrees, current_branch)
+      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
+      puts "-" * 100
+
+      worktrees.each do |worktree|
+        branch = worktree.branch || "(detached)"
+        marker = worktree.branch == current_branch ? "@" : " "
+        short_commit = worktree.head[0, 7]
+        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % [
+          marker, truncate(branch, 25), dim("..."), dim("..."),
+          dim("..."), dim("..."), short_commit, dim("..."),
+        ]
+      end
+      puts ""
+    end
+
+    private def self.clear_skeleton(row_count : Int32)
+      # Move cursor up past skeleton rows + header + separator + blank line
+      lines = row_count + 3
+      print "\e[#{lines}A\e[J" if STDOUT.tty?
+    end
+
+    private def self.render_full_table(results, current_branch, default_branch, count)
       puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age"]
       puts "-" * 100
 
@@ -218,7 +249,7 @@ module WorkTrees
       end
 
       puts ""
-      puts "○ Showing #{worktrees.size} worktree(s) • main=#{default_branch}"
+      puts dim("○ Showing #{count} worktree(s) • main=#{default_branch}")
     end
 
     private def self.worktree_stats(repo, worktree, default_branch)
