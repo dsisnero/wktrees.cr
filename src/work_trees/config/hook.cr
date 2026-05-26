@@ -77,5 +77,41 @@ module WorkTrees
         [] of HookGroup
       end
     end
+
+    # Whether a hook or alias body came from user config or project config.
+    enum HookSource
+      User
+      Project
+    end
+
+    # A parsed name filter, optionally scoped to a specific source.
+    #
+    # Supports formats:
+    # - `"foo"` — matches commands named "foo" from any source
+    # - `"user:foo"` — matches only user's command named "foo"
+    # - `"project:foo"` — matches only project's command named "foo"
+    # - `"user:"` or `"project:"` — matches all commands from that source
+    struct ParsedFilter
+      getter source : HookSource?
+      getter name : String
+
+      def initialize(@source : HookSource?, @name : String)
+      end
+
+      def self.parse(filter : String) : ParsedFilter
+        if filter.starts_with?("user:")
+          new(HookSource::User, filter[5..])
+        elsif filter.starts_with?("project:")
+          new(HookSource::Project, filter[8..])
+        else
+          new(nil, filter)
+        end
+      end
+
+      # Check if this filter matches the given source.
+      def matches_source?(source : HookSource) : Bool
+        @source.nil? || @source == source
+      end
+    end
   end
 end

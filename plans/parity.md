@@ -104,15 +104,15 @@
 - [x] hook run <type> — manually trigger hooks
 - [x] Hooks from both user and project config
 - [x] Hook execution pipeline (concurrent via WaitGroup+Channel, sequential with break on failure)
-- [ ] Hook source filtering (user:/project: prefix in hook show/run)
+- [x] Hook source filtering (user:/project: prefix in hook show/run)
 - [ ] hook run-pipeline internal stdin protocol
 
 ### 2.4 `wt config` ✅
 - [x] config show, config create, config create --project
 - [x] config state vars (set/get/list/clear)
 - [x] [aliases] parsed and dispatched
-- [ ] config shell {install,uninstall} (moved to `shell` command)
-- [ ] config show --full (resolved config with defaults)
+- [x] config shell {install,uninstall} (moved to `shell` command)
+- [x] config show --full (resolved config with defaults, hooks, aliases, state)
 - [ ] config update (deprecation migration)
 - [x] config approvals (approvals.toml persistence, legacy config.toml fallback)
 - [ ] config plugins

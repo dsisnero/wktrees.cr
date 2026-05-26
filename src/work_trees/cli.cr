@@ -2090,7 +2090,7 @@ module WorkTrees
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees hook [show|run]"
+        parser.banner = "Usage: work_trees hook [show|run] [filter]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -2099,49 +2099,59 @@ module WorkTrees
 
       case sub
       when "show"
-        hook_show
+        hook_show(args[1..])
       when "run"
         hook_run(args[1..])
       else
-        hook_show
+        hook_show(args[1..])
       end
     end
 
-    private def self.hook_show
+    private def self.hook_show(filters : Array(String) = [] of String)
       repo = Git::Repository.current
       user_path = Config.default_config_path
       project_path = Config.project_config_path(repo.discovery_path)
       branch = repo.current_worktree.current_branch
+
+      parsed_filters = filters.map { |filter| Config::ParsedFilter.parse(filter) }
 
       puts "=== Hooks ==="
       puts ""
 
       # Show user hooks
       if File.exists?(user_path)
-        puts "User (#{user_path}):"
-        Config::HOOK_SECTIONS.each do |section|
-          groups = Config.parse_hooks(File.read(user_path), section)
-          hooks = groups.flat_map(&.hooks)
-          unless hooks.empty?
-            puts "  [#{section}]"
-            hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+        show_user = parsed_filters.empty? || parsed_filters.any?(&.matches_source?(Config::HookSource::User))
+        if show_user
+          puts "User (#{user_path}):"
+          Config::HOOK_SECTIONS.each do |section|
+            groups = Config.parse_hooks(File.read(user_path), section)
+            hooks = groups.flat_map(&.hooks)
+            filtered = filter_hooks_by_name(hooks, parsed_filters)
+            unless filtered.empty?
+              puts "  [#{section}]"
+              filtered.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+            end
           end
+          puts ""
         end
-        puts ""
       end
 
       # Show project hooks
       if File.exists?(project_path)
-        puts "Project (#{project_path}):"
-        Config::HOOK_SECTIONS.each do |section|
-          groups = Config.parse_hooks(File.read(project_path), section)
-          hooks = groups.flat_map(&.hooks)
-          unless hooks.empty?
-            puts "  [#{section}]"
-            hooks.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+        show_project = parsed_filters.empty? || parsed_filters.any?(&.matches_source?(Config::HookSource::Project))
+        if show_project
+          puts "Project (#{project_path}):"
+          Config::HOOK_SECTIONS.each do |section|
+            groups = Config.parse_hooks(File.read(project_path), section)
+            hooks = groups.flat_map(&.hooks)
+            filtered = filter_hooks_by_name(hooks, parsed_filters)
+            unless filtered.empty?
+              puts "  [#{section}]"
+              filtered.each { |hook| puts "    #{hook.name}: #{hook.command}" }
+            end
           end
+          puts ""
         end
-        puts ""
       end
 
       unless File.exists?(user_path) || File.exists?(project_path)
@@ -2149,12 +2159,22 @@ module WorkTrees
         puts "Add hooks to ~/.config/worktrees/config.toml or .config/wt.toml"
       end
 
-      # Show available template variables
       puts "Available variables: branch, worktree_path, worktree_name,"
       puts "  repo, repo_path, commit, short_commit, default_branch,"
       puts "  base (switch), target (merge/remove), hook_type, hook_name"
       puts ""
       puts "Current: branch=#{branch}"
+    end
+
+    # Filter hooks by parsed name+source filters.
+    # An empty filters list passes all hooks through.
+    private def self.filter_hooks_by_name(hooks : Array(Config::HookCommand), filters : Array(Config::ParsedFilter)) : Array(Config::HookCommand)
+      return hooks if filters.empty?
+      hooks.select do |hook|
+        filters.any? do |filter|
+          filter.name.empty? || hook.name == filter.name
+        end
+      end
     end
 
     private def self.hook_run(args : Array(String))
