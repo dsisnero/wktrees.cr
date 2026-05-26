@@ -11,12 +11,18 @@ module WorkTrees
       property llm_command : String?
       property llm_template : String?
       property llm_template_append : String?
+      property commit_config : CommitConfig
+      property merge_config : MergeConfig
+      property list_config : ListConfig
 
       DEFAULT_PATH_TEMPLATE = "~/worktrees/{{ branch | sanitize }}"
 
       def initialize(
         @worktree_path_template : String = DEFAULT_PATH_TEMPLATE,
         @llm_command : String? = nil,
+        @commit_config : CommitConfig = CommitConfig.new,
+        @merge_config : MergeConfig = MergeConfig.new,
+        @list_config : ListConfig = ListConfig.new,
       )
       end
     end
@@ -28,11 +34,17 @@ module WorkTrees
       property llm_command : String?
       property llm_template_append : String?
       property hooks : Hash(String, Hash(String, String))
+      property commit_config : CommitConfig?
+      property merge_config : MergeConfig?
+      property list_config : ListConfig?
 
       def initialize(
         @worktree_path_template : String? = nil,
         @llm_command : String? = nil,
         @hooks = {} of String => Hash(String, String),
+        @commit_config : CommitConfig? = nil,
+        @merge_config : MergeConfig? = nil,
+        @list_config : ListConfig? = nil,
       )
       end
     end
@@ -46,6 +58,26 @@ module WorkTrees
       merged.llm_command = project.llm_command || user.llm_command
       merged.llm_template = user.llm_template
       merged.llm_template_append = user.llm_template_append
+
+      # Merge section configs
+      if pc = project.commit_config
+        merged.commit_config = user.commit_config.merge_with(pc)
+      else
+        merged.commit_config = user.commit_config
+      end
+
+      if pc = project.merge_config
+        merged.merge_config = user.merge_config.merge_with(pc)
+      else
+        merged.merge_config = user.merge_config
+      end
+
+      if pc = project.list_config
+        merged.list_config = user.list_config.merge_with(pc)
+      else
+        merged.list_config = user.list_config
+      end
+
       merged
     end
 
@@ -86,7 +118,62 @@ module WorkTrees
         end
       end
 
+      # Parse section configs
+      parse_list_section(data, config)
+      parse_merge_section(data, config)
+      parse_commit_section(data, config)
+
       config
+    end
+
+    # -- Section parsers -------------------------------------------------------
+
+    private def self.parse_list_section(data, config)
+      list = data["list"]?.try(&.raw)
+      return unless list.is_a?(Hash)
+      list = list.as(Hash)
+      config.list_config = ListConfig.new(
+        full: list["full"]?.try(&.raw.to_s) == "true",
+        branches: list["branches"]?.try(&.raw.to_s) == "true",
+        remotes: list["remotes"]?.try(&.raw.to_s) == "true",
+      )
+    end
+
+    private def self.parse_merge_section(data, config)
+      merge = data["merge"]?.try(&.raw)
+      return unless merge.is_a?(Hash)
+      merge = merge.as(Hash)
+      config.merge_config = MergeConfig.new(
+        squash: bool_val(merge, "squash", true),
+        commit: bool_val(merge, "commit", true),
+        rebase: bool_val(merge, "rebase", true),
+        remove: bool_val(merge, "remove", true),
+        push: bool_val(merge, "push", true),
+      )
+    end
+
+    private def self.parse_commit_section(data, config)
+      commit = data["commit"]?.try(&.raw)
+      return unless commit.is_a?(Hash)
+      commit = commit.as(Hash)
+      stage_str = commit["stage"]?.try(&.raw.to_s)
+      stage = case stage_str
+              when "tracked", "tracked_only" then StageMode::Tracked
+              when "none"                    then StageMode::None
+              else                                StageMode::All
+              end
+      config.commit_config = CommitConfig.new(stage: stage)
+    end
+
+    private def self.bool_val(hash : Hash, key : String, default : Bool) : Bool
+      val = hash[key]?.try(&.raw.to_s)
+      if val == "true"
+        true
+      elsif val == "false"
+        false
+      else
+        default
+      end
     end
 
     # Default config file path.
@@ -146,6 +233,11 @@ module WorkTrees
           config.hooks[section] = flat_hooks.map { |hook| {hook.name, hook.command} }.to_h
         end
       end
+
+      # Parse section configs
+      parse_list_section(data, config)
+      parse_merge_section(data, config)
+      parse_commit_section(data, config)
 
       config
     end

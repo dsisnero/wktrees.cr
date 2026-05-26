@@ -40,7 +40,7 @@
 - [x] All hook sections (10 types)
 - [x] [aliases] section (custom wt <name> shortcuts)
 - [x] config state vars (set/get/list/clear)
-- [ ] Full config sections (list, merge, remove, switch settings beyond path)
+- [x] Full config sections ([list], [merge], [commit] parsed, merged, used by commands)
 - [x] Env var overrides (WORKTRUNK_*)
 - [x] Deprecation migration (detect + migrate content for sections, vars, no-ff inversion)
 

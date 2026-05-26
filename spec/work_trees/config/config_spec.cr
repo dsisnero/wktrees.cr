@@ -34,6 +34,55 @@ describe WorkTrees::Config do
     end
   end
 
+  describe "config sections" do
+    it "parses [list] section with full and branches" do
+      toml = <<-TOML
+      [list]
+      full = true
+      branches = false
+      TOML
+      config = WorkTrees::Config.parse_user(toml)
+      config.list_config.full?.should be_true
+      config.list_config.branches?.should be_false
+    end
+
+    it "parses [merge] section with squash and ff" do
+      toml = <<-TOML
+      [merge]
+      squash = false
+      ff = true
+      TOML
+      config = WorkTrees::Config.parse_user(toml)
+      config.merge_config.squash?.should be_false
+    end
+
+    it "parses [commit] section with stage mode" do
+      toml = <<-TOML
+      [commit]
+      stage = "tracked"
+      TOML
+      config = WorkTrees::Config.parse_user(toml)
+      config.commit_config.stage.should eq(WorkTrees::Config::StageMode::Tracked)
+    end
+
+    it "has sensible defaults for all section configs" do
+      config = WorkTrees::Config::UserConfig.new
+      config.list_config.full?.should be_false
+      config.list_config.branches?.should be_false
+      config.merge_config.squash?.should be_true
+      config.merge_config.rebase?.should be_true
+      config.commit_config.stage.should eq(WorkTrees::Config::StageMode::All)
+    end
+
+    it "merges list config project over user" do
+      user = WorkTrees::Config.parse_user("[list]\nfull = false\nbranches = true\n")
+      project = WorkTrees::Config.parse_project("[list]\nfull = true\n")
+      merged = WorkTrees::Config.merge(user, project)
+      merged.list_config.full?.should be_true
+      merged.list_config.branches?.should be_true
+    end
+  end
+
   describe "env var overrides" do
     it "applies WORKTRUNK_WORKTREE_PATH override" do
       config = WorkTrees::Config::UserConfig.new
