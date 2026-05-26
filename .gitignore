@@ -4,3 +4,6 @@
 /.crystal-cache/
 *.dwarf
 /work_trees
+
+# macOS resource fork files (AppleDouble on FAT32/exFAT)
+._*
