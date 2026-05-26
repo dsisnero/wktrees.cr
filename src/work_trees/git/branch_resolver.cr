@@ -45,17 +45,30 @@ module WorkTrees
       # Resolve pr:N to branch name using gh CLI, and fetch if needed.
       private def self.resolve_pr(input : String) : String
         number = input.lchop(PR_PREFIX)
-        result = Cmd.new("gh")
-          .args(["pr", "view", number, "--json", "headRefName", "--jq", ".headRefName"])
-          .run
-        if result.success? && !result.stdout.strip.empty?
-          branch = result.stdout.strip
-          # Ensure the branch exists locally
-          ensure_branch_exists(branch)
-          branch
-        else
-          input
+        num = number.to_u32? || raise("Invalid PR number: #{number}")
+
+        repo = Repository.current
+
+        # Try fetching full PR metadata via gh api
+        if info = PrResolver.fetch_pr_info(num, repo)
+          branch = if info.cross_repo?
+                     info.prefixed_branch_name || info.source_branch
+                   else
+                     info.source_branch
+                   end
+
+          if info.cross_repo?
+            fetch_fork_pr(num, branch, repo)
+          else
+            fetch_same_repo_pr(info.source_branch, repo)
+          end
+
+          return branch
         end
+
+        # Fallback: basic gh pr view
+        branch = resolve_pr_fallback(number)
+        branch || input
       end
 
       # Resolve mr:N to branch name using glab CLI.
@@ -101,6 +114,45 @@ module WorkTrees
           repo = Repository.current
           repo.default_branch
         end
+      end
+
+      # Fetch a same-repo PR branch with explicit refspec.
+      private def self.fetch_same_repo_pr(branch : String, repo : Repository) : Nil
+        remote = find_origin_remote(repo)
+        return unless remote
+        PrResolver.fetch_same_repo_branch(branch, remote, repo)
+      end
+
+      # Fetch a forked PR and set up the local branch with tracking.
+      private def self.fetch_fork_pr(number : UInt32, branch : String, repo : Repository) : Nil
+        remote = find_origin_remote(repo)
+        return unless remote
+        PrResolver.fetch_fork_pr(number, remote, repo)
+        PrResolver.setup_fork_branch(branch, remote, number, repo)
+      end
+
+      # Fallback PR resolution using `gh pr view` when gh api is unavailable.
+      private def self.resolve_pr_fallback(number : String) : String?
+        result = Cmd.new("gh")
+          .args(["pr", "view", number, "--json", "headRefName", "--jq", ".headRefName"])
+          .run
+        if result.success? && !result.stdout.strip.empty?
+          branch = result.stdout.strip
+          ensure_branch_exists(branch)
+          branch
+        end
+      end
+
+      # Find the remote name for "origin" or the first remote.
+      private def self.find_origin_remote(repo : Repository) : String?
+        result = Cmd.new("git")
+          .args(["remote"])
+          .current_dir(repo.discovery_path)
+          .run
+        return nil unless result.success?
+        remotes = result.stdout.lines.map(&.strip).reject(&.empty?)
+        # Prefer "origin", else first available
+        remotes.includes?("origin") ? "origin" : remotes.first?
       end
     end
   end

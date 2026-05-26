@@ -64,7 +64,7 @@
 - [x] cd directive file protocol (WORKTRUNK_DIRECTIVE_CD_FILE)
 - [x] pr:N/mr:N resolution (gh/glab CLI)
 - [ ] Interactive picker (deferred)
-- [ ] pr:N/mr:N fetch + checkout (fetches remote branch)
+- [x] pr:N/mr:N fetch + checkout (fetches remote branch, fork handling)
 
 ### 1.2 `wt list` ✅
 - [x] Table rendering: Branch, Worktree, HEAD
