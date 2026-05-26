@@ -2043,12 +2043,18 @@ module WorkTrees
       end
     end
 
-    private def self.bash_completions : String
+    def self.bash_completions : String
       <<-BASH
       _work_trees_complete() {
           local cur prev words cword
           _init_completion || return
-          COMPREPLY=($(compgen -W "list switch remove step merge hook config shell help" -- "$cur"))
+          local step_subs
+          step_subs="commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline"
+          if [[ "${prev}" == "step" ]]; then
+              COMPREPLY=($(compgen -W "$step_subs" -- "$cur"))
+          else
+              COMPREPLY=($(compgen -W "list switch remove step merge hook config shell help" -- "$cur"))
+          fi
       }
       complete -F _work_trees_complete work_trees
       BASH

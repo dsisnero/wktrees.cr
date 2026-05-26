@@ -137,13 +137,13 @@
 - [x] Branch-derived conventional commit fallback
 - [x] [commit.generation] command config
 - [ ] Branch summary generation
-- [ ] Template-append (user + project guidance)
+- [x] Template-append (user + project guidance parsed, merged, env-overridden, used in commit gen)
 
 ### 3.3 Completions ✅
 - [x] bash: compgen-based _work_trees_complete function
 - [x] zsh: compdef with _arguments
 - [x] fish: complete -c with -a
-- [ ] Dynamic subcommand completions (step subs)
+- [x] Dynamic subcommand completions (bash step subs via step_subs variable)
 
 ### 3.4 Interactive Picker ❌
 - [ ] Fuzzy-finder integration (fzf/skim)
@@ -152,8 +152,8 @@
 
 ## Phase 4: Polish & Extras ❌ (Not started)
 
-- [ ] Parallel processing (fibers/channels)
-- [ ] Caching (RepoCache, SHA cache)
+- [x] Parallel processing (fibers/channels via WaitGroup)
+- [x] Caching (RefSnapshot, ShaCache)
 - [ ] Markdown help rendering
 - [ ] Adversarial parity verification
 - [ ] Upstream test suite fully ported
