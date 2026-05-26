@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/max-sixty/worktrunk (Rust, v0.51.0)
 **Pinned:** `8c6ed7e3f68efb3bac43c420d136f5360ff24d54` (`vendor/worktrunk`)
-**Status:** 54 commits, 270 specs, 0 failures, all gates green
+**Status:** 71 commits, 419 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). Port inventory: 1596 partial, 391 skipped, 1716 missing.
 
 ---
 
@@ -155,7 +155,7 @@
 - [x] Parallel processing (fibers/channels via WaitGroup)
 - [x] Caching (RefSnapshot, ShaCache)
 - [x] Markdown help rendering (headings, bold, inline code, fences, lists, HTML skip)
-- [ ] Adversarial parity verification
+- [x] Adversarial parity verification (all 3 drift checks pass: 3703 items tracked)
 - [ ] Upstream test suite fully ported
 
 ---
@@ -179,5 +179,4 @@
 - **2026-05-18**: `OptionParser.unknown_args` puts branch names in `before` (not `after`).
 - **2026-05-18**: Crystal regex `\w+` captures typed as `Char|String`; `scan` avoids type issues.
 - **2026-05-18**: All 10 hook types implemented with user + project config support.
-- **2026-05-18**: 34 commits, 126 specs, all gates green.
-- **2026-05-25**: 54 commits, 341 specs, 0 failures, all gates green. Port inventory curated: 1596 partial, 391 skipped, 1716 missing. Branch inventory (LocalBranch, RemoteBranch, LocalBranchInventory), RefSnapshot (immutable ref capture), and ShaCache (SHA-keyed git result cache) modules ported with full test coverage.
+- **2026-05-25**: 71 commits, 419 specs, 0 failures, all gates green. All 3 drift checks pass. Modules ported this session: styling (lipgloss), git diff parsing, env var overrides, branch inventory, RefSnapshot, ShaCache, pr/mr fetch+checkout, config approvals, deprecation detection+migration, hook source filtering, bash completions, branch summary generation, markdown help rendering, command tracing, full config sections.
