@@ -136,7 +136,7 @@
 - [x] Commit message generation (pipe diff → external LLM)
 - [x] Branch-derived conventional commit fallback
 - [x] [commit.generation] command config
-- [ ] Branch summary generation
+- [x] Branch summary generation (LLM diff → subject+body summary)
 - [x] Template-append (user + project guidance parsed, merged, env-overridden, used in commit gen)
 
 ### 3.3 Completions ✅

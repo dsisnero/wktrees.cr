@@ -1474,6 +1474,45 @@ module WorkTrees
       "#{type}: #{branch}"
     end
 
+    # Build a branch summary prompt for LLM-based diff summarization.
+    #
+    # Follows the upstream format: subject line + body summary.
+    # Returns empty string for empty diffs (no summary to generate).
+    def self.build_summary_prompt(diff : String) : String
+      return "" if diff.strip.empty?
+
+      <<-PROMPT
+      Summarize the changes in this branch diff. Format your response as:
+
+      <subject>: one sentence, max 80 chars, describing what the branch does
+      <body>: 2-4 bullet points explaining the key changes
+
+      diff:
+      #{diff}
+      PROMPT
+    end
+
+    # Generate a branch summary using the configured LLM command.
+    #
+    # Gets the combined diff for a branch, pipes it to the LLM,
+    # and returns the first line as the summary subject.
+    def self.generate_branch_summary(diff : String) : String?
+      return nil if diff.strip.empty?
+
+      config = Config.load_default
+      llm = config.llm_command || ENV["WORKTREES_LLM"]? || "llm"
+      prompt = build_summary_prompt(diff)
+
+      result = Cmd.new(llm)
+        .stdin_data(prompt)
+        .run
+
+      if result.success? && !result.stdout.strip.empty?
+        first_line = result.stdout.strip.lines.first.strip
+        first_line unless first_line.empty?
+      end
+    end
+
     def self.merge(args : Array(String))
       target : String? = nil
       no_commit = false
