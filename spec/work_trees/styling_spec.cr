@@ -168,6 +168,37 @@ module WorkTrees
         result = Styling.format_with_gutter("word1 word2 word3 word4", max_width: 15)
         result.lines.size.should be >= 2
       end
+
+      it "preserves explicit newlines in content" do
+        result = Styling.format_with_gutter("Line 1\nLine 2\nLine 3", max_width: 80)
+        result.lines.size.should be >= 3
+        result.should contain("Line 1")
+        result.should contain("Line 3")
+      end
+
+      it "wraps long paragraphs at terminal width" do
+        long_text = "This commit refactors the authentication system to use a more secure token-based approach instead of the previous session-based system which had several security vulnerabilities"
+        result = Styling.format_with_gutter(long_text, max_width: 60)
+        result.lines.size.should be >= 2
+      end
+    end
+
+    describe "word wrapping" do
+      it "wraps at word boundaries" do
+        result = Styling.format_with_gutter("hello world foo bar", max_width: 10)
+        # Should wrap into multiple lines since "hello world" > 10
+        result.lines.size.should be >= 2
+      end
+
+      it "does not break single long words" do
+        result = Styling.format_with_gutter("superlongwordthatcannotbreak", max_width: 10)
+        result.should contain("superlongwordthatcannotbreak")
+      end
+
+      it "returns empty for empty input" do
+        result = Styling.format_with_gutter("", max_width: 80)
+        result.should eq("")
+      end
     end
   end
 end
