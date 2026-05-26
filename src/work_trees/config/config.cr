@@ -95,9 +95,10 @@ module WorkTrees
       File.join(home, ".config", "worktrees", "config.toml")
     end
 
-    # Load user config from the default location.
+    # Load user config from the default location, with env overrides.
     def self.load_default : UserConfig
-      load_user(default_config_path)
+      config = load_user(default_config_path)
+      apply_env_overrides(config)
     end
 
     # Project config path relative to repo root.
@@ -158,11 +159,69 @@ module WorkTrees
       pre-remove post-remove
     ]
 
+    # -- Env var overrides ------------------------------------------------------
+    #
+    # WORKTRUNK_* env vars override config values at load time.
+    #   WARNING_KEY → top-level key
+    #   SECTION__NESTED → section.nested key
+    #   _LIST__FULL → list.full key
+
+    EXCLUDED_ENV_VARS = %w[
+      WORKTRUNK_CONFIG_PATH
+      WORKTRUNK_SYSTEM_CONFIG_PATH
+      WORKTRUNK_APPROVALS_PATH
+      WORKTRUNK_PROJECT_CONFIG_PATH
+      WORKTRUNK_DIRECTIVE_CD_FILE
+      WORKTRUNK_DIRECTIVE_EXEC_FILE
+      WORKTRUNK_DIRECTIVE_FILE
+      WORKTRUNK_SHELL
+      WORKTRUNK_NO_HOOKS
+      WORKTRUNK_BIN
+      WORKTRUNK_MAX_CONCURRENT_COMMANDS
+    ]
+
+    CONFIG_ENV_MAP = {
+      "WORKTREE_PATH"                       => ["worktree-path"],
+      "COMMIT__GENERATION__COMMAND"         => ["commit", "generation", "command"],
+      "COMMIT__GENERATION__TEMPLATE"        => ["commit", "generation", "template"],
+      "COMMIT__GENERATION__TEMPLATE_APPEND" => ["commit", "generation", "template-append"],
+      "_LIST__FULL"                         => ["list", "full"],
+      "_LIST__BRANCHES"                     => ["list", "branches"],
+      "_LIST__REMOTES"                      => ["list", "remotes"],
+      "_LIST__TIMEOUT_MS"                   => ["list", "timeout-ms"],
+    }
+
+    def self.collect_env_overrides : Hash(String, String)
+      overrides = {} of String => String
+      ENV.each do |key, value|
+        next unless key.starts_with?("WORKTRUNK_")
+        next if EXCLUDED_ENV_VARS.includes?(key)
+        next unless key.size > 10
+        stripped = key[10..]
+        config_key = CONFIG_ENV_MAP[stripped]?
+        next unless config_key
+        next if value.empty?
+        overrides[config_key.join('.')] = value
+      end
+      overrides
+    end
+
+    def self.apply_env_overrides(config : UserConfig) : UserConfig
+      overrides = collect_env_overrides
+      return config if overrides.empty?
+      config.worktree_path_template = overrides["worktree-path"] if overrides["worktree-path"]?
+      config.llm_command = overrides["commit.generation.command"] if overrides["commit.generation.command"]?
+      config.llm_template = overrides["commit.generation.template"] if overrides["commit.generation.template"]?
+      config.llm_template_append = overrides["commit.generation.template-append"] if overrides["commit.generation.template-append"]?
+      config
+    end
+
     # Load merged config (user + project).
     def self.load_merged(repo_root : String) : UserConfig
       user = load_default
       project = load_project(repo_root)
-      merge(user, project)
+      merged = merge(user, project)
+      apply_env_overrides(merged)
     end
 
     # Parse aliases from config TOML.
