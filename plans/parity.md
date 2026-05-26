@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/max-sixty/worktrunk (Rust, v0.51.0)
 **Pinned:** `8c6ed7e3f68efb3bac43c420d136f5360ff24d54` (`vendor/worktrunk`)
-**Status:** 34 commits, 126 specs, 0 failures, all gates green
+**Status:** 54 commits, 270 specs, 0 failures, all gates green
 
 ---
 
@@ -21,7 +21,7 @@
 - [x] WorktreeInfo (parse_porcelain_list, 6 porcelain fields)
 - [x] BranchDeletionMode (Keep/SafeDelete/ForceDelete)
 - [x] BranchResolver (^ @ - pr:N mr:N shortcuts)
-- [ ] Output formatting (styling/ANSI)
+- [x] Output formatting (styling/ANSI)
 - [ ] Tracing/logging infrastructure
 
 ### 0.3 Template Engine ✅
@@ -29,9 +29,8 @@
 - [x] Template context types (HookType, ValidationScope, variable constants)
 - [x] `.expand("{{ branch | sanitize }}", vars)` — {{ var }}, {{ var | filter }}, {{ var | filter(args) }}
 - [x] {{ vars.key }} dotted-key lookup (per-branch state from git config)
-- [x] Shell wrappers: bash, zsh, fish via `Shell.generate(:bash)`
-- [ ] nushell, powershell wrappers
-- [ ] ShellArgs alias args handling
+- [x] Shell wrappers: bash, zsh, fish, nushell, powershell via `Shell.generate(:bash)`
+- [ ] ShellArgs alias args handling (intentional divergence — Crystal template engine uses different approach)
 
 ### 0.4 Config System ✅
 - [x] TOML parsing (crystal-community/toml.cr v0.8.1)
@@ -42,15 +41,15 @@
 - [x] [aliases] section (custom wt <name> shortcuts)
 - [x] config state vars (set/get/list/clear)
 - [ ] Full config sections (list, merge, remove, switch settings beyond path)
-- [ ] Env var overrides (WORKTRUNK_*)
+- [x] Env var overrides (WORKTRUNK_*)
 - [ ] Deprecation migration
 
 ### 0.5 Git Operations ✅
 - [x] git command execution, worktree list/create/remove, branch delete
 - [x] diff, staging, commit, rebase, merge, prune
 - [x] pr:N resolution via gh CLI, mr:N via glab CLI
-- [ ] Integration detection (6 levels)
-- [ ] Ref snapshot & SHA caching
+- [x] Integration detection (4 levels: SameCommit, Ancestor, TreeMatch, NoDiff)
+- [x] Ref snapshot & SHA caching (RefSnapshot + ShaCache modules)
 
 ---
 
@@ -181,3 +180,4 @@
 - **2026-05-18**: Crystal regex `\w+` captures typed as `Char|String`; `scan` avoids type issues.
 - **2026-05-18**: All 10 hook types implemented with user + project config support.
 - **2026-05-18**: 34 commits, 126 specs, all gates green.
+- **2026-05-25**: 54 commits, 341 specs, 0 failures, all gates green. Port inventory curated: 1596 partial, 391 skipped, 1716 missing. Branch inventory (LocalBranch, RemoteBranch, LocalBranchInventory), RefSnapshot (immutable ref capture), and ShaCache (SHA-keyed git result cache) modules ported with full test coverage.
