@@ -69,6 +69,10 @@ module WorkTrees
         !@prunable.nil?
       end
 
+      def locked? : Bool
+        !@locked.nil?
+      end
+
       def has_commits? : Bool
         @head != NULL_OID
       end
