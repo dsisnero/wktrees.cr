@@ -22,7 +22,7 @@
 - [x] BranchDeletionMode (Keep/SafeDelete/ForceDelete)
 - [x] BranchResolver (^ @ - pr:N mr:N shortcuts)
 - [x] Output formatting (styling/ANSI)
-- [ ] Tracing/logging infrastructure
+- [x] Tracing/logging infrastructure (wt-trace records, Span timing, command tracing)
 
 ### 0.3 Template Engine ✅
 - [x] 9 filters — codename parity verified (SHA-256, all 6 upstream vectors)
