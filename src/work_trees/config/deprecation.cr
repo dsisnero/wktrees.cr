@@ -93,6 +93,52 @@ module WorkTrees
 
         deps
       end
+
+      # Apply structural TOML migrations to config content.
+      #
+      # Handles deprecated section renames and boolean inversions:
+      # - [commit-generation] → [commit.generation]
+      # - [ci] → [forge]
+      # - [select] → [switch.picker]
+      # - merge.no-ff → merge.ff (inverted)
+      #
+      # Returns the migrated content. If no migrations apply, returns
+      # a copy of the original unchanged.
+      def self.migrate_content(content : String) : String
+        result = content
+
+        # Rename deprecated sections (multiline: ^ matches line start)
+        result = result.gsub(/^\[commit-generation\]/m, "[commit.generation]")
+        result = result.gsub(/^\[ci\]/m, "[forge]")
+        result = result.gsub(/^\[select\]/m, "[switch.picker]")
+
+        # Invert no-ff → ff (boolean inversion)
+        # Only applies inside [merge] sections
+        in_merge = false
+        lines = result.lines.map do |line|
+          stripped = line.strip
+          if stripped == "[merge]"
+            in_merge = true
+          elsif stripped.starts_with?('[') && stripped.ends_with?(']')
+            in_merge = false
+          end
+          if in_merge && stripped.starts_with?("no-ff")
+            indent = line[/^(\s*)/, 1]
+            if stripped.includes?("true")
+              "#{indent}ff = false"
+            elsif stripped.includes?("false")
+              "#{indent}ff = true"
+            else
+              line
+            end
+          else
+            line
+          end
+        end
+        result = lines.join('\n')
+
+        result
+      end
     end
   end
 end

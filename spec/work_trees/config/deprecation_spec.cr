@@ -125,5 +125,91 @@ module WorkTrees
         deps.legacy_approved_commands?.should be_true
       end
     end
+
+    describe "migrate_content" do
+      it "renames [commit-generation] to [commit.generation]" do
+        content = <<-TOML
+        [commit-generation]
+        command = "llm -m haiku"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[commit.generation]")
+        migrated.should_not contain("[commit-generation]")
+        migrated.should contain("command = \"llm -m haiku\"")
+      end
+
+      it "renames [ci] to [forge]" do
+        content = <<-TOML
+        [ci]
+        platform = "github"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[forge]")
+        migrated.should_not contain("[ci]")
+        migrated.should contain("platform = \"github\"")
+      end
+
+      it "inverts no-ff to ff in [merge]" do
+        content = <<-TOML
+        [merge]
+        no-ff = true
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("ff = false")
+        migrated.should_not contain("no-ff")
+      end
+
+      it "inverts no-ff = false to ff = true" do
+        content = <<-TOML
+        [merge]
+        no-ff = false
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("ff = true")
+        migrated.should_not contain("no-ff")
+      end
+
+      it "renames [select] to [switch.picker]" do
+        content = <<-TOML
+        [select]
+        pager = "less"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[switch.picker]")
+        migrated.should_not contain("[select]")
+      end
+
+      it "returns content unchanged when no migrations apply" do
+        content = <<-TOML
+        [commit.generation]
+        command = "llm"
+        [forge]
+        platform = "github"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[commit.generation]")
+        migrated.should contain("[forge]")
+      end
+
+      it "migrates multiple patterns in one pass" do
+        content = <<-TOML
+        [commit-generation]
+        command = "llm"
+
+        [merge]
+        no-ff = true
+
+        [ci]
+        platform = "github"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[commit.generation]")
+        migrated.should contain("ff = false")
+        migrated.should contain("[forge]")
+        migrated.should_not contain("[commit-generation]")
+        migrated.should_not contain("no-ff")
+        migrated.should_not contain("[ci]")
+      end
+    end
   end
 end

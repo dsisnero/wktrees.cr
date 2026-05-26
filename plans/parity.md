@@ -42,7 +42,7 @@
 - [x] config state vars (set/get/list/clear)
 - [ ] Full config sections (list, merge, remove, switch settings beyond path)
 - [x] Env var overrides (WORKTRUNK_*)
-- [ ] Deprecation migration
+- [x] Deprecation migration (detect + migrate content for sections, vars, no-ff inversion)
 
 ### 0.5 Git Operations ✅
 - [x] git command execution, worktree list/create/remove, branch delete
