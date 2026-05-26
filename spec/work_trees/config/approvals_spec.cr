@@ -106,5 +106,58 @@ module WorkTrees
         approvals.command_approved?("github.com/user/repo", "npm test").should be_true
       end
     end
+
+    describe "batch approve and save" do
+      it "approves multiple with automatic save" do
+        dir = File.join(Dir.tempdir, "wt_approvals_test_#{Random.rand(99999)}")
+        Dir.mkdir_p(dir)
+        path = File.join(dir, "approvals.toml")
+        begin
+          approvals = Config::Approvals.new
+          approvals.approve_and_save("github.com/user/repo", ["npm install", "npm test"], path)
+          approvals.command_approved?("github.com/user/repo", "npm install").should be_true
+          File.exists?(path).should be_true
+        ensure
+          File.delete(path) if File.exists?(path)
+          Dir.delete(dir) if Dir.exists?(dir)
+        end
+      end
+    end
+
+    describe "each_project" do
+      it "yields project id and commands" do
+        approvals = Config::Approvals.new
+        approvals.approve_command("a/b", "cmd1")
+        approvals.approve_command("a/b", "cmd2")
+        found = false
+        approvals.each_project do |project_id, commands|
+          if project_id == "a/b"
+            found = true
+            commands.should contain("cmd1")
+            commands.should contain("cmd2")
+          end
+        end
+        found.should be_true
+      end
+    end
+
+    describe "save_atomic" do
+      it "writes atomically via temp file" do
+        dir = File.join(Dir.tempdir, "wt_atomic_test_#{Random.rand(99999)}")
+        Dir.mkdir_p(dir)
+        path = File.join(dir, "approvals.toml")
+        begin
+          approvals = Config::Approvals.new
+          approvals.approve_command("github.com/user/repo", "cmd")
+          approvals.save_atomic(path)
+          File.exists?(path).should be_true
+          reloaded = Config::Approvals.from_toml(File.read(path))
+          reloaded.command_approved?("github.com/user/repo", "cmd").should be_true
+        ensure
+          File.delete(path) if File.exists?(path)
+          Dir.delete(dir) if Dir.exists?(dir)
+        end
+      end
+    end
   end
 end

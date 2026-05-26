@@ -141,7 +141,7 @@ module WorkTrees
         if path = ENV["WORKTRUNK_APPROVALS_PATH"]?
           return path
         end
-        config_path = default_config_path
+        config_path = Config.default_config_path
         dir = File.dirname(config_path)
         File.join(dir, "approvals.toml")
       end
@@ -156,7 +156,7 @@ module WorkTrees
         end
 
         # 2. Fallback to config.toml legacy format
-        config_path = default_config_path
+        config_path = Config.default_config_path
         if File.exists?(config_path)
           content = File.read(config_path)
           return from_config_toml(content)
@@ -168,11 +168,50 @@ module WorkTrees
 
       # Save approvals to disk.
       def save(path : String? = nil) : Nil
-        save_path = path || Approvals.approvals_path
+        save_path = if p = path
+                      p
+                    else
+                      Approvals.approvals_path
+                    end
         toml = to_toml
         dir = File.dirname(save_path)
         Dir.mkdir_p(dir) unless Dir.exists?(dir)
         File.write(save_path, toml)
+      end
+
+      # Save atomically: write to temp file, then rename.
+      #
+      # Prevents readers from seeing a partially-written file.
+      def save_atomic(path : String? = nil) : Nil
+        save_path = if p = path
+                      p
+                    else
+                      Approvals.approvals_path
+                    end
+        toml_str = to_toml
+        dir = File.dirname(save_path)
+        Dir.mkdir_p(dir) unless Dir.exists?(dir)
+        tmp = "#{save_path}.tmp"
+        begin
+          File.write(tmp, toml_str)
+          File.rename(tmp, save_path)
+        rescue File::Error
+          File.write(save_path, toml_str)
+        end
+      end
+
+      # Approve multiple commands and save atomically in one step.
+      def approve_and_save(project : String, commands : Array(String), path : String? = nil) : Nil
+        approve_commands(project, commands)
+        save_atomic(path)
+      end
+
+      # Iterate over all projects and their approved commands.
+      def each_project(&)
+        @projects.each do |project_id, cmds|
+          next if cmds.empty?
+          yield project_id, cmds
+        end
       end
     end
   end
