@@ -139,6 +139,52 @@ module WorkTrees
 
         result
       end
+
+      # Result of check_and_migrate: detection info plus migrated content.
+      struct CheckAndMigrateResult
+        getter deprecations : Deprecations
+        getter migrated_content : String
+        getter original_content : String
+
+        @has_deprecations : Bool
+
+        def initialize(
+          @has_deprecations,
+          @deprecations,
+          @migrated_content,
+          @original_content,
+        )
+        end
+
+        def has_deprecations? : Bool
+          @has_deprecations
+        end
+      end
+
+      # Combined detection + structural migration for a config file.
+      #
+      # Performs the full check-and-migrate workflow:
+      # 1. Detect deprecated patterns
+      # 2. Apply structural TOML migrations
+      # 3. Return result with deprecation info and migrated content
+      def self.check_and_migrate(content : String, user_config : Bool) : CheckAndMigrateResult
+        deps = detect_deprecations(content)
+        migrated = if deps.has_any?
+                     compute_migrated_content(content)
+                   else
+                     content
+                   end
+        CheckAndMigrateResult.new(deps.has_any?, deps, migrated, content)
+      end
+
+      # Apply full structural and template-var migration.
+      #
+      # Combines migrate_content (section renames, boolean inversions)
+      # with normalize_template_vars (deprecated template variable replacement).
+      def self.compute_migrated_content(content : String) : String
+        migrated = migrate_content(content)
+        normalize_template_vars(migrated)
+      end
     end
   end
 end

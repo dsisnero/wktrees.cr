@@ -211,5 +211,61 @@ module WorkTrees
         migrated.should_not contain("[ci]")
       end
     end
+
+    describe "check_and_migrate" do
+      it "detects deprecations and returns migrated content" do
+        content = <<-TOML
+        [commit-generation]
+        command = "llm -m haiku"
+        TOML
+        result = Config::Deprecation.check_and_migrate(content, user_config: true)
+        result.has_deprecations?.should be_true
+        result.migrated_content.should contain("[commit.generation]")
+        result.migrated_content.should_not contain("[commit-generation]")
+      end
+
+      it "returns empty migrations for clean content" do
+        content = <<-TOML
+        [commit.generation]
+        command = "llm"
+        TOML
+        result = Config::Deprecation.check_and_migrate(content, user_config: true)
+        result.has_deprecations?.should be_false
+      end
+
+      it "includes all deprecation details" do
+        content = <<-TOML
+        [commit-generation]
+        command = "llm -m haiku"
+
+        [merge]
+        no-ff = true
+        TOML
+        result = Config::Deprecation.check_and_migrate(content, user_config: true)
+        result.has_deprecations?.should be_true
+      end
+    end
+
+    describe "compute_migrated_content" do
+      it "applies structural migrations" do
+        content = <<-TOML
+        [commit-generation]
+        command = "llm"
+        TOML
+        migrated = Config::Deprecation.compute_migrated_content(content)
+        migrated.should contain("[commit.generation]")
+        migrated.should_not contain("[commit-generation]")
+      end
+
+      it "replaces deprecated template variables" do
+        content = <<-TOML
+        [pre-start]
+        server = "cd {{ repo_root }} && npm start"
+        TOML
+        migrated = Config::Deprecation.compute_migrated_content(content)
+        migrated.should contain("{{ repo_path }}")
+        migrated.should_not contain("{{ repo_root }}")
+      end
+    end
   end
 end
