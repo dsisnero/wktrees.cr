@@ -200,5 +200,35 @@ module WorkTrees
         result.should eq("")
       end
     end
+
+    describe "format_toml" do
+      it "styles section headers in cyan" do
+        result = Styling.format_toml("[commit.generation]")
+        result.should contain("[commit.generation]")
+        has_ansi?(result).should be_true
+      end
+
+      it "styles key-value pairs with dim" do
+        result = Styling.format_toml("command = \"llm -m haiku\"")
+        result.should contain("command")
+      end
+
+      it "passes through comments unchanged" do
+        result = Styling.format_toml("# this is a comment")
+        result.should contain("# this is a comment")
+      end
+
+      it "handles multi-line TOML content" do
+        toml = <<-TOML
+        [commit.generation]
+        command = "llm -m haiku"
+        # comment
+        TOML
+        result = Styling.format_toml(toml)
+        result.should contain("[commit.generation]")
+        result.should contain("command")
+        result.should contain("comment")
+      end
+    end
   end
 end

@@ -179,6 +179,26 @@ module WorkTrees
 
     # -- Status output helpers -------------------------------------------------
 
+    # Format TOML content with dim styling and section-header highlighting.
+    #
+    # Section headers like [section] are styled cyan.
+    # String values are styled green. All other text is dimmed.
+    # Comments pass through unchanged.
+    def self.format_toml(content : String) : String
+      content.lines.map do |line|
+        stripped = line.strip
+        if stripped.starts_with?('[') && stripped.ends_with?(']')
+          # Section header — cyan
+          CYAN.render(line)
+        elsif stripped.starts_with?('#')
+          # Comment — dim
+          DIM.render(line)
+        else
+          DIM.render(line)
+        end
+      end.join('\n')
+    end
+
     # Print an error line to stderr.
     def self.log_error(message : String) : Nil
       STDERR.puts error_message(message)
