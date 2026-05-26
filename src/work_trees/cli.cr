@@ -585,19 +585,34 @@ module WorkTrees
       {status, changes, ahead, behind, remote_status, ci}
     end
 
-    private def self.ci_status(branch : String) : String
-      result = Cmd.new("gh")
-        .args(["run", "list", "--branch", branch, "--limit", "1", "--json", "status,conclusion", "--jq", ".[0].conclusion // .[0].status"])
-        .run
-      return "" if !result.success? || result.stdout.strip.empty?
+    # Detect CI platform from a git remote URL.
+    def self.platform_for_branch(remote_url : String) : CiPlatform
+      url = Git::GitRemoteUrl.parse(remote_url)
+      return CiPlatform::Unknown unless url
+      CiPlatform.detect(url)
+    end
 
-      case result.stdout.strip
-      when "success"   then green("✓")
-      when "failure"   then red("✗")
-      when "cancelled" then red("✗")
-      when "skipped"   then dim("−")
-      else                  dim("○") # pending, in_progress, etc.
-      end
+    private def self.ci_status(branch : String) : String
+      # Get the remote URL for the repo
+      repo = Git::Repository.current rescue nil
+      return "" unless repo
+
+      result = Cmd.new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(repo.discovery_path)
+        .run
+      return "" unless result.success?
+      remote_url = result.stdout.strip
+      return "" if remote_url.empty?
+
+      # Detect platform and fetch status
+      platform = platform_for_branch(remote_url)
+      return "" if platform.unknown?
+
+      status = CiStatus.fetch_ci_status(branch, platform)
+      return "" unless status
+
+      status.symbol
     end
 
     private def self.count_commits_ahead(from : String, to : String) : Int32
