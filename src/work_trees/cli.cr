@@ -6,7 +6,6 @@ require "option_parser"
 require "json"
 require "time"
 require "wait_group"
-require "colorize"
 
 module WorkTrees
   module CLI
@@ -116,11 +115,15 @@ module WorkTrees
     def self.list(args : Array(String))
       full = false
       format = "table"
+      json_output = false
 
       OptionParser.parse(args) do |parser|
         parser.banner = "Usage: work_trees list [options]"
         parser.on("-f", "--full", "Show full details") { full = true }
         parser.on("--format=FORMAT", "Output format: table or json") { |fmt| format = fmt }
+        parser.on("--json", "Output in JSON format") { json_output = true }
+        parser.on("--ci-status", "Include CI status (requires gh CLI)") { ENV["WORKTREES_SHOW_CI"] = "1" }
+        parser.on("--progressive", "Enable progressive rendering") { ENV["WORKTREES_PROGRESSIVE"] = "1" }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -137,18 +140,14 @@ module WorkTrees
 
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
+      default_branch = repo.default_branch
 
-      case format
-      when "json"
-        list_json(worktrees, current_branch)
-      when "full"
+      if format == "json" || json_output
+        list_json_v2(worktrees, current_branch, default_branch, repo)
+      elsif format == "full" || full
         list_full(worktrees, current_branch)
       else
-        if full
-          list_full(worktrees, current_branch)
-        else
-          list_compact(worktrees, current_branch)
-        end
+        list_compact(worktrees, current_branch)
       end
     end
 
@@ -169,39 +168,89 @@ module WorkTrees
       puts "○ Showing #{worktrees.size} worktree(s)"
     end
 
-    private def self.list_json(worktrees, current_branch)
-      items = worktrees.map do |worktree|
-        {
-          "branch"   => worktree.branch,
-          "path"     => worktree.path,
-          "head"     => worktree.head,
-          "current"  => worktree.branch == current_branch,
-          "bare"     => worktree.bare?,
-          "detached" => worktree.detached?,
-        }
-      end
+    private def self.list_json_v2(worktrees, current_branch, default_branch, repo)
+      puts(JSON.build { |json|
+        json.array do
+          worktrees.each do |worktree|
+            branch = worktree.branch
+            symbols, ahead_behind, _divergence = worktree_status_symbols(repo, worktree, default_branch)
+            working_diff = working_tree_diff(worktree.path, branch)
 
-      puts items.to_pretty_json
+            json.object do
+              json.field "branch", branch
+              json.field "head", worktree.head
+              json.field "path", worktree.path
+              json.field "bare", worktree.bare?
+              json.field "detached", worktree.detached?
+              json.field "locked", !worktree.locked.nil?
+              json.field "prunable", worktree.prunable?
+              json.field "current", branch == current_branch
+              json.field "is_main", branch == default_branch
+
+              if wt = symbols.working_tree
+                json.field "working_tree" do
+                  json.object do
+                    json.field "staged", wt.staged?
+                    json.field "modified", wt.modified?
+                    json.field "untracked", wt.untracked?
+                    json.field "dirty", wt.dirty?
+                  end
+                end
+              end
+
+              if ms = symbols.main_state
+                json.field "main_state", ms.display
+              end
+
+              json.field "ahead", ahead_behind.ahead
+              json.field "behind", ahead_behind.behind
+
+              if ud = symbols.upstream_divergence
+                json.field "upstream", ud.symbol
+              end
+
+              if ws = symbols.worktree_state
+                json.field "worktree_state", ws.display
+              end
+
+              if os = symbols.operation_state
+                json.field "operation_state", os.display
+              end
+
+              unless working_diff.empty?
+                json.field "working_diff", working_diff
+              end
+
+              if ENV["WORKTREES_SHOW_CI"]? == "1" && branch
+                ci = ci_status(branch)
+                json.field "ci_status", ci unless ci.empty?
+              end
+            end
+          end
+        end
+      })
     end
 
     private def self.list_full(worktrees, current_branch)
       repo = Git::Repository.current
       default_branch = repo.default_branch
 
-      # Phase 1: Show skeleton immediately
-      show_skeleton(worktrees, current_branch)
+      # Phase 1: Show skeleton immediately using ColumnKind headers
+      show_skeleton_v2(worktrees, current_branch, default_branch)
 
       # Phase 2: Compute stats concurrently
       wg = WaitGroup.new
-      results = Array(Tuple(Int32, String, String, String, String, Int32, Int32, String, String)).new(worktrees.size)
+      results = Array(Tuple(Int32, String, String, List::StatusSymbols, Int32, Int32, List::AheadBehind, List::Divergence, String, String)).new(worktrees.size)
       mutex = Mutex.new
 
       worktrees.each_with_index do |worktree, idx|
         wg.spawn do
           branch = worktree.branch || "(detached)"
           short_commit = worktree.head[0, 7]
-          status, changes, ahead, behind, remote_status, ci = worktree_stats(repo, worktree, default_branch)
-          mutex.synchronize { results << {idx, branch, short_commit, status, changes, ahead, behind, remote_status, ci} }
+          symbols, ahead_behind, divergence = worktree_status_symbols(repo, worktree, default_branch)
+          working_diff = working_tree_diff(worktree.path, branch)
+          branch_diff = branch_to_default_diff(default_branch, branch, worktree.path)
+          mutex.synchronize { results << {idx, branch, short_commit, symbols, worktree.locked? ? 1 : 0, 0, ahead_behind, divergence, working_diff, branch_diff} }
         end
       end
 
@@ -211,45 +260,291 @@ module WorkTrees
       # Phase 3: Clear skeleton and show real table
       clear_skeleton(worktrees.size)
 
-      render_full_table(results, current_branch, default_branch, worktrees.size)
+      render_full_table_v2(results, current_branch, default_branch, worktrees.size)
     end
 
-    private def self.show_skeleton(worktrees, current_branch)
-      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age", "CI"]
-      puts "-" * 110
+    private def self.show_skeleton_v2(worktrees, current_branch, default_branch)
+      puts "%-2s %-25s %-8s %-7s %-6s %-6s %-8s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit"]
+      puts "-" * 75
 
       worktrees.each do |worktree|
         branch = worktree.branch || "(detached)"
-        marker = worktree.branch == current_branch ? "@" : " "
+        marker = gutter_symbol(worktree, current_branch, default_branch)
         short_commit = worktree.head[0, 7]
-        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % [
-          marker, truncate(branch, 25), dim("..."), dim("..."),
-          dim("..."), dim("..."), short_commit, dim("..."), dim("..."),
+        puts "%-2s %-25s %-8s %-7s %-6s %-6s %-8s" % [
+          marker, truncate(branch, 25), dim("· · · · · · ·"),
+          dim("..."), dim("..."), dim("..."), short_commit,
         ]
       end
       puts ""
     end
 
     private def self.clear_skeleton(row_count : Int32)
-      # Move cursor up past skeleton rows + header + separator + blank line
       lines = row_count + 3
       print "\e[#{lines}A\e[J" if STDOUT.tty?
     end
 
-    private def self.render_full_table(results, current_branch, default_branch, count)
-      puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit", "Age", "CI"]
-      puts "-" * 110
+    private def self.render_full_table_v2(results, current_branch, default_branch, count)
+      puts "%-2s %-30s %-8s %-7s %-6s %-6s %-8s" % ["", "Branch", "Status", "HEAD±", "main↕", "Remote", "Commit"]
+      puts "-" * 75
 
-      results.each do |_, branch, short_commit, status, changes, ahead, behind, remote_status, ci_status|
-        marker = branch == current_branch ? "@" : " "
-        puts "%-2s %-25s %-8s %-7s %6s %6s %-8s %s %s" % [
-          marker, truncate(branch, 25), status, changes,
-          ahead_to_s(ahead), behind_to_s(behind), short_commit, remote_status, ci_status,
+      results.each do |_, branch, short_commit, symbols, _locked, _unused, ahead_behind, divergence, working_diff, _branch_diff|
+        marker = gutter_from_symbols(branch, current_branch, default_branch)
+        status = symbols.render_with_mask
+        puts "%-2s %-30s %s %-7s %-6s %-6s %-8s" % [
+          marker, truncate(branch, 30), status,
+          working_diff, ahead_display(ahead_behind),
+          divergence_display(divergence), short_commit,
         ]
       end
 
       puts ""
       puts dim("○ Showing #{count} worktree(s) • main=#{default_branch}")
+    end
+
+    # Gutter symbol: @ for current, ^ for main, + for regular worktree, space for branch-only
+    private def self.gutter_symbol(worktree, current_branch, default_branch)
+      branch = worktree.branch
+      if branch == current_branch
+        "@"
+      elsif branch == default_branch
+        "^"
+      else
+        "+"
+      end
+    end
+
+    private def self.gutter_from_symbols(branch, current_branch, default_branch)
+      if branch == current_branch
+        "@"
+      elsif branch == default_branch
+        "^"
+      elsif branch == "(detached)"
+        " "
+      else
+        "+"
+      end
+    end
+
+    private def self.ahead_display(ab : List::AheadBehind) : String
+      return "" if ab.ahead == 0 && ab.behind == 0
+      parts = [] of String
+      parts << "↑#{compact_count(ab.ahead)}" if ab.ahead > 0
+      parts << "↓#{compact_count(ab.behind)}" if ab.behind > 0
+      parts.join(" ")
+    end
+
+    private def self.divergence_display(div : List::Divergence) : String
+      div.styled || ""
+    end
+
+    # Compact number notation: ≥10K → "∞", ≥1K → "NK", ≥100 → "NC", else raw
+    private def self.compact_count(n : Int32) : String
+      if n >= 10_000
+        "∞"
+      elsif n >= 1_000
+        "#{n // 1_000}K"
+      elsif n >= 100
+        "#{n // 100}C"
+      else
+        n.to_s
+      end
+    end
+
+    # Compute working tree diff (staged + unstaged changes vs HEAD)
+    private def self.working_tree_diff(wt_path : String, branch : String?) : String
+      return "-" unless branch && File.directory?(wt_path)
+      result = Cmd.new("git")
+        .args(["diff", "--numstat", "HEAD"])
+        .current_dir(wt_path)
+        .run
+      return "" unless result.success?
+      parse_numstat(result.stdout)
+    end
+
+    # Compute branch diff vs default branch
+    private def self.branch_to_default_diff(default_branch : String, branch : String, wt_path : String) : String
+      return "" if branch == default_branch
+      return "" unless File.directory?(wt_path)
+      result = Cmd.new("git")
+        .args(["diff", "--numstat", "#{default_branch}...#{branch}"])
+        .run
+      return "" unless result.success?
+      parse_numstat(result.stdout)
+    end
+
+    # Parse git --numstat output: "N\tM\tpath" → "+N -M" with compact notation
+    private def self.parse_numstat(output : String) : String
+      added = 0
+      removed = 0
+      output.each_line do |line|
+        next if line.strip.empty?
+        parts = line.split('\t')
+        next unless parts.size >= 2
+        added += parts[0].to_i32? || 0
+        removed += parts[1].to_i32? || 0
+      end
+      return "" if added == 0 && removed == 0
+      parts = [] of String
+      parts << "+#{compact_count(added)}" if added > 0
+      parts << "-#{compact_count(removed)}" if removed > 0
+      parts.join(" ")
+    end
+
+    # Build StatusSymbols for a worktree by running git commands.
+    private def self.worktree_status_symbols(repo, worktree, default_branch) : {List::StatusSymbols, List::AheadBehind, List::Divergence}
+      symbols = List::StatusSymbols.new
+      branch = worktree.branch
+      wt_path = worktree.path
+
+      if branch && File.directory?(wt_path)
+        build_working_tree_status(symbols, wt_path)
+        ahead_behind = build_main_state(symbols, default_branch, branch, wt_path)
+        build_worktree_state(symbols, worktree)
+        build_upstream_divergence(symbols, repo, branch, default_branch)
+      else
+        symbols.worktree_state = List::WorktreeState::Branch
+        ahead_behind = List::AheadBehind.new
+      end
+
+      build_operation_state(symbols, wt_path)
+      divergence = symbols.upstream_divergence || List::Divergence::None
+      {symbols, ahead_behind, divergence}
+    end
+
+    private def self.build_working_tree_status(symbols, wt_path)
+      dirty = Cmd.new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(wt_path)
+        .run
+        .stdout
+
+      if dirty.empty?
+        symbols.working_tree = List::WorkingTreeStatus.new
+      else
+        staged = dirty.lines.any? { |line| line =~ /^[MADRC]/ }
+        modified = dirty.lines.any? { |line| line =~ /^.[MADRC]/ || line =~ /^.M/ }
+        untracked = dirty.lines.any?(&.starts_with?("??"))
+        symbols.working_tree = List::WorkingTreeStatus.new(
+          staged: staged, modified: modified, untracked: untracked
+        )
+      end
+    end
+
+    private def self.build_main_state(symbols, default_branch, branch, wt_path : String) : List::AheadBehind
+      # Compute ahead/behind counts
+      ahead = count_commits_ahead(default_branch, branch)
+      behind = count_commits_ahead(branch, default_branch)
+      ahead_behind = List::AheadBehind.new(ahead: ahead, behind: behind)
+
+      if branch == default_branch
+        symbols.main_state = List::MainState::IsMain
+        return ahead_behind
+      end
+
+      # Check if branch is an orphan (no common ancestor with default)
+      orphan_check = Cmd.new("git")
+        .args(["merge-base", default_branch, branch])
+        .run
+      is_orphan = !orphan_check.success?
+
+      # Check if same commit as default
+      branch_sha = Cmd.new("git")
+        .args(["rev-parse", branch])
+        .run
+        .stdout
+        .strip
+      default_sha = Cmd.new("git")
+        .args(["rev-parse", default_branch])
+        .run
+        .stdout
+        .strip
+      is_same_commit = !branch_sha.empty? && branch_sha == default_sha
+
+      # Check integration status
+      repo = Git::Repository.current
+      integration_reason = Git::Integration.reason(repo, branch, default_branch)
+
+      # Determine main state using priority chain
+      if is_orphan
+        symbols.main_state = List::MainState::Orphan
+      elsif integration_reason
+        symbols.main_state = List::MainState::Integrated
+      elsif is_same_commit
+        if clean_working_tree?(wt_path)
+          symbols.main_state = List::MainState::Empty
+        else
+          symbols.main_state = List::MainState::SameCommit
+        end
+      elsif ahead > 0 && behind > 0
+        symbols.main_state = List::MainState::Diverged
+      elsif ahead > 0
+        symbols.main_state = List::MainState::Ahead
+      elsif behind > 0
+        symbols.main_state = List::MainState::Behind
+      else
+        symbols.main_state = List::MainState::None
+      end
+
+      ahead_behind
+    end
+
+    # Check if working tree at path is clean (no uncommitted changes)
+    private def self.clean_working_tree?(wt_path : String) : Bool
+      return true if wt_path.empty?
+      result = Cmd.new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(wt_path)
+        .run
+      result.success? && result.stdout.strip.empty?
+    end
+
+    private def self.build_worktree_state(symbols, worktree)
+      if worktree.locked?
+        symbols.worktree_state = List::WorktreeState::Locked
+      elsif worktree.prunable?
+        symbols.worktree_state = List::WorktreeState::Prunable
+      elsif worktree.detached?
+        symbols.worktree_state = List::WorktreeState::Branch
+      end
+    end
+
+    private def self.build_upstream_divergence(symbols, repo, branch, default_branch)
+      return if branch == default_branch
+      remote_ahead_count = remote_ahead_count(repo, branch)
+      remote_behind_count = remote_behind_count(repo, branch)
+      if remote_ahead_count || remote_behind_count
+        a = remote_ahead_count || 0
+        b = remote_behind_count || 0
+        symbols.upstream_divergence = List::Divergence.from_counts_with_remote(a, b)
+      end
+    end
+
+    private def self.build_operation_state(symbols, wt_path)
+      if File.directory?(File.join(wt_path, ".git", "rebase-merge")) ||
+         File.directory?(File.join(wt_path, ".git", "rebase-apply"))
+        symbols.operation_state = List::OperationState::Rebase
+      elsif File.exists?(File.join(wt_path, ".git", "MERGE_HEAD"))
+        symbols.operation_state = List::OperationState::Merge
+      end
+    end
+
+    private def self.remote_ahead_count(repo, branch) : Int32?
+      result = Cmd.new("git")
+        .args(["rev-list", "--count", "HEAD..@{u}"])
+        .run
+      if result.success? && !result.stdout.strip.empty?
+        result.stdout.strip.to_i32
+      end
+    end
+
+    private def self.remote_behind_count(repo, branch) : Int32?
+      result = Cmd.new("git")
+        .args(["rev-list", "--count", "@{u}..HEAD"])
+        .run
+      if result.success? && !result.stdout.strip.empty?
+        result.stdout.strip.to_i32
+      end
     end
 
     private def self.worktree_stats(repo, worktree, default_branch)
@@ -540,19 +835,19 @@ module WorkTrees
     end
 
     private def self.red(text) : String
-      text.colorize.red.to_s
+      Styling.red(text)
     end
 
     private def self.yellow(text) : String
-      text.colorize.yellow.to_s
+      Styling.yellow(text)
     end
 
     private def self.bold(text) : String
-      text.colorize.bold.to_s
+      Styling.bold(text)
     end
 
     private def self.dim(text) : String
-      text.colorize.dim.to_s
+      Styling.dim(text)
     end
 
     private def self.run_hooks(section : String, vars : Hash(String, String))
@@ -823,7 +1118,15 @@ module WorkTrees
 
     private def self.step_diff
       repo = Git::Repository.current
-      result = Cmd.new("git").args(["diff", "--stat"]).current_dir(repo.discovery_path).run
+      args = ["diff"]
+
+      # Check if there are extra args (e.g. --stat, --numstat, branch name)
+      # For simplicity, support --stat flag
+      if ARGV.includes?("--stat")
+        args << "--stat"
+      end
+
+      result = Cmd.new("git").args(args).current_dir(repo.discovery_path).run
       puts result.stdout
     end
 
@@ -914,15 +1217,24 @@ module WorkTrees
     end
 
     private def self.step_for_each(args : Array(String))
-      command = args.join(" ")
+      concurrent = false
+      max_jobs = 8
+      dry_run = false
 
-      OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step for-each <command>"
+      # Parse flags; remaining args become the command
+      remaining = args.dup
+      OptionParser.parse(remaining) do |parser|
+        parser.banner = "Usage: work_trees step for-each [options] <command>"
+        parser.on("--concurrent", "Run command concurrently across worktrees") { concurrent = true }
+        parser.on("-j N", "--jobs=N", "Maximum concurrent jobs (default: 8)") { |num| max_jobs = num.to_i }
+        parser.on("--dry-run", "Show what would be executed without running") { dry_run = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
         end
       end
+
+      command = remaining.join(" ")
 
       if command.strip.empty?
         STDERR.puts "Error: No command specified. Usage: work_trees step for-each <command>"
@@ -934,6 +1246,24 @@ module WorkTrees
       current_wt = repo.current_worktree
       current_branch = current_wt.current_branch
 
+      if dry_run
+        puts "◎ Would run '#{command}' in #{worktrees.size} worktree(s)..."
+        worktrees.each do |worktree|
+          branch = worktree.branch || "(detached)"
+          marker = worktree.branch == current_branch ? "@" : " "
+          puts "  #{marker} #{branch}: #{worktree.path}"
+        end
+        return
+      end
+
+      if concurrent
+        step_for_each_concurrent(worktrees, command, current_branch, max_jobs)
+      else
+        step_for_each_sequential(worktrees, command, current_branch)
+      end
+    end
+
+    private def self.step_for_each_sequential(worktrees, command, current_branch)
       puts "◎ Running '#{command}' in #{worktrees.size} worktree(s)..."
       puts ""
 
@@ -963,6 +1293,52 @@ module WorkTrees
 
       puts ""
       puts "○ Done."
+    end
+
+    private def self.step_for_each_concurrent(worktrees, command, current_branch, max_jobs)
+      puts "◎ Running '#{command}' in #{worktrees.size} worktree(s) concurrently (max #{max_jobs})..."
+      puts ""
+
+      sem = Sync::Semaphore.new(max_jobs)
+      done = Channel(Nil).new
+      results_mutex = Mutex.new
+      results = [] of Tuple(String, String, Bool, Int32)
+
+      worktrees.each do |worktree|
+        spawn do
+          sem.acquire do
+            branch = worktree.branch || "(detached)"
+            result = Cmd.new("sh")
+              .args(["-c", command])
+              .current_dir(worktree.path)
+              .run
+
+            output = result.success? ? result.stdout : result.stderr
+            results_mutex.synchronize do
+              results << {branch, output.strip, result.success?, result.exit_code}
+            end
+          end
+          done.send(nil)
+        end
+      end
+
+      worktrees.size.times { done.receive }
+
+      # Sort results by branch name for consistent display
+      results.sort_by!(&.[0])
+      results.each do |branch, output, success, exit_code|
+        marker = branch == current_branch ? "@" : " "
+        if success
+          puts "#{marker} #{branch} ✓"
+        else
+          puts "#{marker} #{branch} ✗ (exit #{exit_code})"
+        end
+        output.each_line { |line| puts "    #{line}" } unless output.empty?
+      end
+
+      puts ""
+      succeeded = results.count { |_, _, success, _| success }
+      puts "○ #{succeeded}/#{worktrees.size} succeeded."
     end
 
     private def self.step_eval(args : Array(String))
@@ -1387,7 +1763,19 @@ module WorkTrees
     end
 
     private def self.show_resolved_state
-      puts "[state (current branch)]"
+      puts "[state]"
+      repo = Git::Repository.current rescue nil
+      if repo
+        puts "  default-branch: #{repo.default_branch}"
+        prev = Cmd.new("git")
+          .args(["config", "--local", "worktrees.history"])
+          .run
+        if prev.success? && !prev.stdout.strip.empty?
+          puts "  previous-branch: #{prev.stdout.strip}"
+        end
+      end
+      puts ""
+      puts "[state vars (current branch)]"
       vars_result = Cmd.new("git")
         .args(["config", "--local", "--get-regexp", "^worktrees\\.state\\."])
         .run rescue nil
@@ -1413,9 +1801,14 @@ module WorkTrees
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees config state vars [set|get|list|clear]"
+        parser.banner = "Usage: work_trees config state <key> [action]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
+          puts ""
+          puts "Keys:"
+          puts "  vars            Manage per-branch state variables"
+          puts "  default-branch  Get, set, or clear the default branch"
+          puts "  previous-branch Get, set, or clear the previous branch"
           exit 0
         end
       end
@@ -1423,8 +1816,14 @@ module WorkTrees
       case sub
       when "vars"
         state_vars(args[1..])
+      when "default-branch"
+        state_default_branch(args[1..])
+      when "previous-branch"
+        state_previous_branch(args[1..])
       else
-        STDERR.puts "Usage: work_trees config state vars [set|get|list|clear]"
+        STDERR.puts "Usage: work_trees config state <key> [action]"
+        STDERR.puts "Keys: vars, default-branch, previous-branch"
+        STDERR.puts "Run: work_trees config state --help"
         exit 1
       end
     end
@@ -1466,7 +1865,6 @@ module WorkTrees
         if result.success? && !result.stdout.strip.empty?
           result.stdout.each_line do |line|
             k, v = line.split(' ', 2).map(&.strip)
-            # Strip prefix to show clean key
             short_key = k.lchop("#{prefix}.")
             puts "  #{short_key} = #{v}"
           end
@@ -1478,7 +1876,6 @@ module WorkTrees
           .args(["config", "--local", "--get-regexp", "^#{prefix}\\."])
           .run
         if result.success?
-          # Remove each key
           result.stdout.each_line do |line|
             key = line.split(' ', 2).first
             Cmd.new("git").args(["config", "--local", "--unset", key]).run
@@ -1489,6 +1886,74 @@ module WorkTrees
         end
       else
         STDERR.puts "Usage: work_trees config state vars [set|get|list|clear]"
+        exit 1
+      end
+    end
+
+    private def self.state_default_branch(args : Array(String))
+      action = args[0]? || "get"
+      repo = Git::Repository.current
+
+      case action
+      when "get"
+        default = repo.default_branch
+        puts default
+      when "set"
+        value = args[1]?
+        unless value
+          STDERR.puts "Usage: work_trees config state default-branch set <branch>"
+          exit 1
+        end
+        repo.run_command(["config", "--local", "worktrees.default-branch", value])
+        puts "✓ Set default branch to #{value}"
+      when "clear"
+        result = Cmd.new("git")
+          .args(["config", "--local", "--unset", "worktrees.default-branch"])
+          .run
+        if result.success?
+          puts "✓ Cleared default branch cache"
+        else
+          puts "No default branch cache to clear"
+        end
+      else
+        STDERR.puts "Usage: work_trees config state default-branch [get|set|clear]"
+        exit 1
+      end
+    end
+
+    private def self.state_previous_branch(args : Array(String))
+      action = args[0]? || "get"
+      repo = Git::Repository.current
+
+      case action
+      when "get"
+        result = Cmd.new("git")
+          .args(["config", "--local", "worktrees.history"])
+          .run
+        if result.success?
+          puts result.stdout.strip
+        else
+          puts ""
+        end
+      when "set"
+        value = args[1]?
+        unless value
+          STDERR.puts "Usage: work_trees config state previous-branch set <branch>"
+          exit 1
+        end
+        repo.run_command(["config", "--local", "worktrees.history", value])
+        puts "✓ Set previous branch to #{value}"
+      when "clear"
+        result = Cmd.new("git")
+          .args(["config", "--local", "--unset", "worktrees.history"])
+          .run
+        if result.success?
+          puts "✓ Cleared previous branch"
+        else
+          puts "No previous branch to clear"
+        end
+      else
+        STDERR.puts "Usage: work_trees config state previous-branch [get|set|clear]"
         exit 1
       end
     end
@@ -1913,22 +2378,52 @@ module WorkTrees
 
     private def self.step_statusline
       repo = Git::Repository.current
-      branch = repo.current_worktree.current_branch
-      dirty = Cmd.new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(repo.current_worktree.path)
-        .run
-        .stdout
+      worktree = repo.current_worktree
+      branch = worktree.current_branch
+      default_branch = repo.default_branch
+      wt_path = worktree.path
 
-      status = dirty.empty? ? "" : "+"
-      default = repo.default_branch
-      ahead = count_commits_ahead(default, branch) if branch != default
-      ahead_str = ahead && ahead > 0 ? "↑#{ahead}" : ""
+      # Build a lightweight WorktreeInfo-compatible object for status computation
+      wt_info = Git::WorktreeInfo.new(wt_path, worktree.head_sha, branch)
 
-      print "[#{branch}"
-      print status unless status.empty?
-      print ahead_str unless ahead_str.empty?
-      puts "]"
+      # Build status symbols for the current worktree
+      symbols, ahead_behind, _divergence = worktree_status_symbols(repo, wt_info, default_branch)
+      working_diff = working_tree_diff(wt_path, branch)
+
+      # Build segments in priority order (matches ColumnKind priority)
+      segments = [] of String
+
+      # Branch name
+      segments << branch
+
+      # Status
+      status = symbols.format_compact
+      segments << status unless status.strip.empty?
+
+      # Working diff
+      segments << working_diff unless working_diff.empty?
+
+      # Ahead/behind
+      if ahead_behind.ahead > 0
+        segments << "↑#{ahead_behind.ahead}"
+      end
+      if ahead_behind.behind > 0
+        segments << "↓#{ahead_behind.behind}"
+      end
+
+      # Upstream
+      if ud = symbols.upstream_divergence
+        s = ud.styled || ud.symbol
+        segments << s unless s.empty?
+      end
+
+      # Operation state
+      if os = symbols.operation_state
+        s = os.styled || os.display
+        segments << s unless s.empty?
+      end
+
+      puts "[#{segments.join(" ")}]"
     end
   end
 end

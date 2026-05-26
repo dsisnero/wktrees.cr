@@ -13,6 +13,8 @@ crystal: '>= 1.20.2'
 dependencies:
   toml:
     github: crystal-community/toml.cr
+  lipgloss:
+    github: dsisnero/lipgloss
 
 development_dependencies:
   ameba:
