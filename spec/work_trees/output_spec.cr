@@ -47,11 +47,28 @@ module WorkTrees
       end
     end
 
-    describe "status output" do
-      it "writes to stderr" do
-        io = IO::Memory.new
-        Output.status("test message", io)
-        io.to_s.should contain("test message")
+    describe ".init_from_flags" do
+      it "consumes -v flag and sets verbosity" do
+        args = ["-v", "list"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(1)
+        args.should eq(["list"]) # -v consumed
+        Output.verbosity = 0
+      end
+
+      it "consumes -vv flag and sets debug" do
+        args = ["-vv", "list"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(2)
+        args.should eq(["list"])
+        Output.verbosity = 0
+      end
+
+      it "handles args without verbose flags" do
+        args = ["list", "--full"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(0)
+        args.should eq(["list", "--full"]) # unchanged
       end
     end
 

@@ -10,6 +10,9 @@ require "wait_group"
 module WorkTrees
   module CLI
     def self.run(args = ARGV)
+      # Initialize output verbosity from flags before dispatch
+      Output.init_from_flags(args)
+
       return if handle_global_flags(args)
 
       if args.empty?
@@ -55,6 +58,7 @@ module WorkTrees
       if args.delete("--yes") || args.delete("-y")
         ENV["WORKTREES_YES"] = "1"
       end
+      # -v and -vv are parsed by Output.init_from_flags above
       false
     end
 
@@ -221,7 +225,7 @@ module WorkTrees
                 json.field "working_diff", working_diff
               end
 
-              if ENV["WORKTREES_SHOW_CI"]? == "1" && branch
+              if Output.verbose? && branch
                 ci = ci_status(branch)
                 json.field "ci_status", ci unless ci.empty?
               end

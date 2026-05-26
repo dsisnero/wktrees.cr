@@ -28,10 +28,11 @@ module WorkTrees
     end
 
     # Initialize verbosity from CLI flags or WORKTREES_VERBOSE env var.
+    # Consumes -v and -vv flags from args.
     def self.init_from_flags(args : Array(String)) : Nil
-      if args.any? { |a| a == "-vv" }
+      if args.delete("-vv")
         @@verbosity = 2
-      elsif args.any? { |a| a == "-v" }
+      elsif args.delete("-v")
         @@verbosity = 1
       elsif v = ENV["WORKTREES_VERBOSE"]?
         @@verbosity = v.to_i? || 0
