@@ -75,6 +75,9 @@ module WorkTrees
       cmd_str = command_string
       log_start(cmd_str)
 
+      ts_start = Trace.now_us
+      tid = Trace.thread_id
+
       stdout = IO::Memory.new
       stderr = IO::Memory.new
       stdin = if data = @stdin_data
@@ -95,6 +98,7 @@ module WorkTrees
       )
 
       status = process.wait
+      dur_us = Trace.now_us - ts_start
       result = CmdResult.new(
         status: status,
         stdout: stdout.to_s,
@@ -102,6 +106,16 @@ module WorkTrees
       )
 
       log_result(cmd_str, result)
+
+      # Emit trace record when debug mode is active
+      if Trace.enabled?
+        trace = Trace.format_command(
+          @program, @args.join(" "), ts_start, tid, dur_us,
+          ok: result.success?, context: @context,
+        )
+        Trace.emit(trace)
+      end
+
       result
     rescue ex : IO::Error | File::NotFoundError
       log_error(command_string, ex)

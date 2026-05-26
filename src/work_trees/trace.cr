@@ -22,7 +22,7 @@ module WorkTrees
 
     # Whether trace logging is enabled (WORKTREES_VERBOSE=2 or -vv).
     def self.enabled? : Bool
-      ENV["WORKTREES_VERBOSE"]?.try(&.to_i?) == 2
+      Output.debug?
     end
 
     # Log a trace record to STDERR if tracing is enabled.
