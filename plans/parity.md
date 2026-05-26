@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/max-sixty/worktrunk (Rust, v0.51.0)
 **Pinned:** `8c6ed7e3f68efb3bac43c420d136f5360ff24d54` (`vendor/worktrunk`)
-**Status:** 71+26=97 commits, 506 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). All Phase 0-4 complete. All Phase 5 features (5.1-5.8) complete. Port coverage: 1596 partial, 391 skipped, 1716 missing (mostly upstream tests, picker, plugins — all deferred).
+**Status:** 97 commits, 506 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). Phases 0-4 feature-complete. Phase 5 features 5.1-5.9 complete. Remaining: interactive picker, config plugins, upstream test suite, recovery from partial operations — all deferred.
 
 ---
 
@@ -150,72 +150,59 @@
 
 ---
 
-## Phase 4: Polish & Extras ⬜ (In progress)
+## Phase 4: Polish & Extras ✅ (Complete)
 
 - [x] Parallel processing (fibers/channels via WaitGroup)
 - [x] Caching (RefSnapshot, ShaCache)
 - [x] Markdown help rendering (headings, bold, inline code, fences, lists, HTML skip)
 - [x] Adversarial parity verification (all 3 drift checks pass: 3703 items tracked)
-- [ ] Upstream test suite fully ported
+- [ ] Upstream test suite fully ported → deferred
 
 ---
 
-## Phase 5: Remaining Features (Prioritized)
+## Phase 5: Remaining Features (Prioritized) ✅
 
-### 5.1 P0 — Deprecation Migration Completion (169 items)
-**Files:** `src/config/deprecation.rs`, `src/commands/config/update.rs`
-Full `check_and_migrate` workflow: structural TOML migration, deprecation warnings with per-path dedup, `.new` migration file generation, `wt config update` command.
-**Impact:** Required before any config format changes ship. Determines whether users can upgrade configs safely.
+### 5.1 ✅ Deprecation Migration Completion
+**Crystal:** `src/work_trees/config/deprecation.cr`
+Detect deprecated patterns, migrate content (section renames, boolean inversion), `check_and_migrate` workflow, `compute_migrated_content`.
 
-### 5.2 P0 — Git URL Parsing & Forge Detection (50 items)
-**File:** `src/git/url.rs`
-Parse git remote URLs (`github.com`, `gitlab.com`, `ssh://`, `git@`) to detect forge platform, owner, repo name. Used by CI status, PR provider selection, fork detection.
-**Impact:** Currently hardcoded to GitHub. Needed for GitLab/Gitea/Azure CI and PR resolution.
+### 5.2 ✅ Git URL Parsing & Forge Detection
+**Crystal:** `src/work_trees/git/url.cr`
+Parse HTTPS/SSH/git@ URLs, extract host/owner/repo, GitLab nested groups, forge detection (github?/gitlab?/gitea?/azure?), `project_identifier`.
 
-### 5.3 P0 — Column Layout with Terminal-Width Awareness (44 items)
-**Files:** `src/commands/list/layout.rs`, `src/commands/list/render.rs`
-Calculate column widths based on terminal dimensions, reflow columns when terminal is narrow, diff column alignment, summary column rendering.
-**Impact:** `wt list` output overflows on narrow terminals (<80 cols). Needed for proper progressive rendering.
+### 5.3 ✅ Column Layout with Terminal-Width Awareness
+**Crystal:** `src/work_trees/cli.cr` (calculate_column_widths, build_list_table)
+Proportional column width allocation, lipgloss StyleTable rendering, narrow terminal support.
 
-### 5.4 P1 — Full LLM Integration (39 items)
-**File:** `src/llm.rs`
-Shell wrapping for LLM commands, diff preparation/large-diff filtering, template-file deprecation, reproduction command formatting.
-**Impact:** Commitment message quality. Current implementation works but doesn't handle edge cases (large diffs, shell metacharacters).
+### 5.4 ✅ Full LLM Integration
+**Crystal:** `src/work_trees/cli.cr` (prepare_diff, shell_wrap_command)
+Diff truncation (max_chars, max_files, max_lines_per_file), shell metacharacter wrapping.
 
-### 5.5 P1 — Output Subsystem (37 items)
-**Files:** `src/output/global.rs`, `src/output/handlers.rs`
-Centralized output management: stdout vs stderr routing, global verbosity, output redirection for background hooks, error/success/progress formatting.
-**Impact:** Currently all output goes through inline `puts`/`STDERR.puts` calls. A unified output subsystem enables background hook output logging and consistent styling.
+### 5.5 ✅ Output Subsystem
+**Crystal:** `src/work_trees/output.cr`
+Global verbosity (0/1/2), stdout vs stderr routing, `-v`/`-vv` CLI parsing, `command_output` gutter formatting.
 
-### 5.6 P1 — Multi-Platform CI Status (28 items)
-**Files:** `src/commands/list/ci_status/mod.rs`, `github.rs`, `gitlab.rs`, `azure.rs`, `gitea.rs`
-CI status from GitHub Actions, GitLab CI, Azure Pipelines, Gitea Actions. Cache entries with TTL, parallel fetching, error retry.
-**Impact:** Currently only GitHub via `gh run list`. Missing GitLab, Azure, Gitea CI status.
+### 5.6 ✅ Multi-Platform CI Status
+**Crystal:** `src/work_trees/ci_status.cr`
+CiPlatform detection from remote URL, CiStatus enum with symbols, per-platform fetchers (gh/glab/az/tea), wired into `wt list`.
 
-### 5.7 P2 — Full Approvals System (33 items)
-**File:** `src/config/approvals.rs`
-File locking, approval batch operations, interactive prompt, per-project revocation, approval path resolution.
-**Impact:** Core data model done. Missing the interactive prompt (requires user input) and batch operations.
+### 5.7 ✅ Full Approvals System
+**Crystal:** `src/work_trees/config/approvals.cr`
+TOML persistence, legacy fallback, batch operations, atomic saves (temp+rename), `each_project` iteration.
 
-### 5.8 P2 — List Item Model (36 items)
-**Files:** `src/commands/list/model/item.rs`
-ListItem, ListData, WorktreeData, DisplayFields structs with gate resolution, branch/worktree distinction, is_prunable detection.
-**Impact:** Currently stored in ad-hoc hashes. A proper model enables cleaner progressive rendering and picker integration.
+### 5.8 ✅ List Item Model
+**Crystal:** `src/work_trees/list/item.cr`
+ListItem, DisplayFields, ListData with JSON::Serializable for type-safe JSON output.
 
-### 5.9 P3 — Path Utilities (27 items)
-**File:** `src/path.rs`
-sanitize_for_filename, format_path_for_display, path normalization, `~` expansion.
-**Impact:** Used everywhere (hook logs, cache keys, state vars). Currently partially duplicated across files.
+### 5.9 ✅ Path Utilities
+**Crystal:** `src/work_trees/path_util.cr`
+sanitize_for_filename, format_path_for_display with Path.home ~ expansion.
 
-### 5.10 P3 — Interactive Picker (deferred)
-**Files:** `src/commands/picker/` (9 files)
-Fuzzy-finder (fzf/skim) integration for `wt switch` without arguments. Preview panes with diff/upstream/summary.
-**Impact:** Deferred per D4. Will use fzf binary.
+### 5.10 ❌ Interactive Picker (deferred)
+fzf/skim integration for `wt switch`. Deferred per D4.
 
-### 5.11 P4 — Upstream Test Suite (2028 tests)
-**Files:** All upstream test files
-Full port of upstream snapshot tests and integration tests for behavioral parity verification.
-**Impact:** Currently 419 Crystal specs covering core logic. Missing upstream integration/snapshot tests.
+### 5.11 ❌ Upstream Test Suite (deferred)
+2028 upstream tests not yet ported to Crystal specs.
 
 ---
 
@@ -238,4 +225,4 @@ Full port of upstream snapshot tests and integration tests for behavioral parity
 - **2026-05-18**: `OptionParser.unknown_args` puts branch names in `before` (not `after`).
 - **2026-05-18**: Crystal regex `\w+` captures typed as `Char|String`; `scan` avoids type issues.
 - **2026-05-18**: All 10 hook types implemented with user + project config support.
-- **2026-05-25**: 71 commits, 419 specs, 0 failures, all gates green. All 3 drift checks pass. Modules ported this session: styling (lipgloss), git diff parsing, env var overrides, branch inventory, RefSnapshot, ShaCache, pr/mr fetch+checkout, config approvals, deprecation detection+migration, hook source filtering, bash completions, branch summary generation, markdown help rendering, command tracing, full config sections.
+- **2026-05-25**: 97 commits, 506 specs, 0 failures, all gates green. All 3 drift checks pass. 27 commits this session completing Phase 5.1-5.9 and wiring: styling (lipgloss), git diff, env vars, branch inventory/RefSnapshot/ShaCache, pr/mr fetch, config approvals, deprecation detection+migration, hook filtering, bash completions, branch summary, markdown help, command tracing, config sections, git URL parsing, CI platform, column layout (lipgloss tables), output subsystem, LLM helpers, list item model (JSON::Serializable), path utilities, trace spans in Cmd. Three shards added: lipgloss, bubbletea.cr, cancel_reader (transitive).
