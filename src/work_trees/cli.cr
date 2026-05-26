@@ -1474,6 +1474,59 @@ module WorkTrees
       "#{type}: #{branch}"
     end
 
+    # -- LLM helpers ----------------------------------------------------------
+
+    SHELL_METACHARACTERS = "&|;<>$`'\"(){}*?[]~!\\"
+
+    # Prepare a diff for LLM consumption by truncating large diffs.
+    #
+    # Limits: max_chars (default 400K), max_lines_per_file (50), max_files (50).
+    def self.prepare_diff(
+      diff : String,
+      max_chars : Int32 = 400_000,
+      max_lines_per_file : Int32 = 50,
+      max_files : Int32 = 50,
+    ) : String
+      return "" if diff.empty?
+
+      # Under threshold: return as-is
+      return diff if diff.size <= max_chars
+
+      # Split into per-file diffs
+      chunks = diff.split("diff --git ")
+      header = chunks.shift || ""
+      result = String::Builder.new
+      result << header
+      file_count = 0
+
+      chunks.each do |chunk|
+        break if file_count >= max_files
+        file_lines = chunk.lines.to_a
+        if file_lines.size > max_lines_per_file + 1
+          result << "diff --git "
+          result << file_lines.first(max_lines_per_file).join('\n')
+          result << "\n... (truncated #{file_lines.size - max_lines_per_file} lines)\n"
+        else
+          result << "diff --git " << chunk
+        end
+        file_count += 1
+      end
+
+      result.to_s
+    end
+
+    # Wrap a command with shell escaping if it contains metacharacters.
+    #
+    # Simple commands like "llm -m haiku" pass through unchanged.
+    # Complex commands get wrapped: "sh -c 'complex && command'"
+    def self.shell_wrap_command(command : String) : String
+      needs_shell = command.chars.any? { |char| SHELL_METACHARACTERS.includes?(char) }
+      return command unless needs_shell
+
+      escaped = command.gsub("'", "'\\''")
+      "sh -c '#{escaped}'"
+    end
+
     # Build a branch summary prompt for LLM-based diff summarization.
     #
     # Follows the upstream format: subject line + body summary.
