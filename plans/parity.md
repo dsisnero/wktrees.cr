@@ -81,7 +81,7 @@
 - [x] SafeDelete/ForceDelete/Keep modes
 - [x] Current worktree guard
 - [x] Background removal staging (trash rename + background fiber via stage_worktree_removal)
-- [ ] Recovery from partial operations
+- [ ] Recovery from partial operations → Phase 5
 
 ---
 
@@ -105,7 +105,7 @@
 - [x] Hooks from both user and project config
 - [x] Hook execution pipeline (concurrent via WaitGroup+Channel, sequential with break on failure)
 - [x] Hook source filtering (user:/project: prefix in hook show/run)
-- [ ] hook run-pipeline internal stdin protocol
+- [ ] hook run-pipeline internal stdin protocol → deferred
 
 ### 2.4 `wt config` ✅
 - [x] config show, config create, config create --project
@@ -113,9 +113,9 @@
 - [x] [aliases] parsed and dispatched
 - [x] config shell {install,uninstall} (moved to `shell` command)
 - [x] config show --full (resolved config with defaults, hooks, aliases, state)
-- [ ] config update (deprecation migration)
+- [ ] config update (deprecation migration) → Phase 5.1
 - [x] config approvals (approvals.toml persistence, legacy config.toml fallback)
-- [ ] config plugins
+- [ ] config plugins → Phase 5
 
 ---
 
@@ -150,13 +150,72 @@
 
 ---
 
-## Phase 4: Polish & Extras ❌ (Not started)
+## Phase 4: Polish & Extras ⬜ (In progress)
 
 - [x] Parallel processing (fibers/channels via WaitGroup)
 - [x] Caching (RefSnapshot, ShaCache)
 - [x] Markdown help rendering (headings, bold, inline code, fences, lists, HTML skip)
 - [x] Adversarial parity verification (all 3 drift checks pass: 3703 items tracked)
 - [ ] Upstream test suite fully ported
+
+---
+
+## Phase 5: Remaining Features (Prioritized)
+
+### 5.1 P0 — Deprecation Migration Completion (169 items)
+**Files:** `src/config/deprecation.rs`, `src/commands/config/update.rs`
+Full `check_and_migrate` workflow: structural TOML migration, deprecation warnings with per-path dedup, `.new` migration file generation, `wt config update` command.
+**Impact:** Required before any config format changes ship. Determines whether users can upgrade configs safely.
+
+### 5.2 P0 — Git URL Parsing & Forge Detection (50 items)
+**File:** `src/git/url.rs`
+Parse git remote URLs (`github.com`, `gitlab.com`, `ssh://`, `git@`) to detect forge platform, owner, repo name. Used by CI status, PR provider selection, fork detection.
+**Impact:** Currently hardcoded to GitHub. Needed for GitLab/Gitea/Azure CI and PR resolution.
+
+### 5.3 P0 — Column Layout with Terminal-Width Awareness (44 items)
+**Files:** `src/commands/list/layout.rs`, `src/commands/list/render.rs`
+Calculate column widths based on terminal dimensions, reflow columns when terminal is narrow, diff column alignment, summary column rendering.
+**Impact:** `wt list` output overflows on narrow terminals (<80 cols). Needed for proper progressive rendering.
+
+### 5.4 P1 — Full LLM Integration (39 items)
+**File:** `src/llm.rs`
+Shell wrapping for LLM commands, diff preparation/large-diff filtering, template-file deprecation, reproduction command formatting.
+**Impact:** Commitment message quality. Current implementation works but doesn't handle edge cases (large diffs, shell metacharacters).
+
+### 5.5 P1 — Output Subsystem (37 items)
+**Files:** `src/output/global.rs`, `src/output/handlers.rs`
+Centralized output management: stdout vs stderr routing, global verbosity, output redirection for background hooks, error/success/progress formatting.
+**Impact:** Currently all output goes through inline `puts`/`STDERR.puts` calls. A unified output subsystem enables background hook output logging and consistent styling.
+
+### 5.6 P1 — Multi-Platform CI Status (28 items)
+**Files:** `src/commands/list/ci_status/mod.rs`, `github.rs`, `gitlab.rs`, `azure.rs`, `gitea.rs`
+CI status from GitHub Actions, GitLab CI, Azure Pipelines, Gitea Actions. Cache entries with TTL, parallel fetching, error retry.
+**Impact:** Currently only GitHub via `gh run list`. Missing GitLab, Azure, Gitea CI status.
+
+### 5.7 P2 — Full Approvals System (33 items)
+**File:** `src/config/approvals.rs`
+File locking, approval batch operations, interactive prompt, per-project revocation, approval path resolution.
+**Impact:** Core data model done. Missing the interactive prompt (requires user input) and batch operations.
+
+### 5.8 P2 — List Item Model (36 items)
+**Files:** `src/commands/list/model/item.rs`
+ListItem, ListData, WorktreeData, DisplayFields structs with gate resolution, branch/worktree distinction, is_prunable detection.
+**Impact:** Currently stored in ad-hoc hashes. A proper model enables cleaner progressive rendering and picker integration.
+
+### 5.9 P3 — Path Utilities (27 items)
+**File:** `src/path.rs`
+sanitize_for_filename, format_path_for_display, path normalization, `~` expansion.
+**Impact:** Used everywhere (hook logs, cache keys, state vars). Currently partially duplicated across files.
+
+### 5.10 P3 — Interactive Picker (deferred)
+**Files:** `src/commands/picker/` (9 files)
+Fuzzy-finder (fzf/skim) integration for `wt switch` without arguments. Preview panes with diff/upstream/summary.
+**Impact:** Deferred per D4. Will use fzf binary.
+
+### 5.11 P4 — Upstream Test Suite (2028 tests)
+**Files:** All upstream test files
+Full port of upstream snapshot tests and integration tests for behavioral parity verification.
+**Impact:** Currently 419 Crystal specs covering core logic. Missing upstream integration/snapshot tests.
 
 ---
 
