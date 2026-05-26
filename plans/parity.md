@@ -154,7 +154,7 @@
 
 - [x] Parallel processing (fibers/channels via WaitGroup)
 - [x] Caching (RefSnapshot, ShaCache)
-- [ ] Markdown help rendering
+- [x] Markdown help rendering (headings, bold, inline code, fences, lists, HTML skip)
 - [ ] Adversarial parity verification
 - [ ] Upstream test suite fully ported
 

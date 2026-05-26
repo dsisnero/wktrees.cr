@@ -2490,5 +2490,86 @@ module WorkTrees
 
       puts "[#{segments.join(" ")}]"
     end
+
+    # Render minimal markdown to ANSI-styled text for CLI help output.
+    #
+    # Supports: headings (#, ##, ###), bold (**text**), inline code (`text`),
+    # fenced code blocks (```), bullet lists (- or *), and HTML comment skipping.
+    def self.render_markdown(text : String) : String
+      result = String::Builder.new
+      in_code_block = false
+      code_lines = [] of String
+
+      text.each_line do |line|
+        trimmed = line.strip
+
+        # Skip HTML comments
+        if trimmed.starts_with?("<!--") && trimmed.ends_with?("-->")
+          next
+        end
+
+        # Handle code fences
+        if trimmed.starts_with?("```")
+          if !in_code_block
+            in_code_block = true
+            code_lines.clear
+          else
+            in_code_block = false
+            unless code_lines.empty?
+              content = code_lines.join('\n')
+              result << Styling.format_with_gutter(content, max_width: nil)
+              result << '\n'
+            end
+          end
+          next
+        end
+
+        if in_code_block
+          code_lines << line
+          next
+        end
+
+        # Render inline formatting
+        rendered = render_inline_formatting(line)
+        result << rendered
+        result << '\n'
+      end
+
+      # Unclosed code fence — render accumulated lines
+      if in_code_block && !code_lines.empty?
+        content = code_lines.join('\n')
+        result << Styling.format_with_gutter(content, max_width: nil)
+        result << '\n'
+      end
+
+      result.to_s.rstrip('\n')
+    end
+
+    # Render inline markdown formatting within a single line.
+    private def self.render_inline_formatting(line : String) : String
+      # Headings: # Title → green Title
+      if line.starts_with?("### ")
+        return Styling.green(line[4..])
+      elsif line.starts_with?("## ")
+        return Styling.format_heading(line[3..])
+      elsif line.starts_with?("# ")
+        return Styling.format_heading(line[2..])
+      end
+
+      # Bullet list items
+      if matched = line.match(/^(\s*)([-*])\s+(.+)/)
+        indent = matched[1]
+        content = matched[3]
+        return "#{indent}  #{render_inline_formatting(content)}"
+      end
+
+      # Bold: **text** → bold text
+      line = line.gsub(/\*\*(.+?)\*\*/) { Styling.bold($1) }
+
+      # Inline code: `text` → dim text
+      line = line.gsub(/`([^`]+)`/) { Styling.dim($1) }
+
+      line
+    end
   end
 end
