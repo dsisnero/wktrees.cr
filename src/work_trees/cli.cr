@@ -2571,5 +2571,85 @@ module WorkTrees
 
       line
     end
+
+    # -- Column layout for list tables -----------------------------------------
+
+    # Calculate column widths based on terminal width and content sizes.
+    #
+    # Returns an array of widths (one per column) that sums to `terminal`.
+    # Wider content gets proportionally more space. Short content gets
+    # a minimum width equal to its header length.
+    def self.calculate_column_widths(
+      headers : Array(String),
+      data : Array(Array(String)),
+      terminal : Int32,
+    ) : Array(Int32)
+      n = headers.size
+      return [] of Int32 if n == 0
+
+      # Find max content width per column
+      max_widths = headers.map(&.size)
+      data.each do |row|
+        row.each_with_index do |cell, i|
+          break if i >= n
+          max_widths[i] = {max_widths[i], cell.size}.max if cell
+        end
+      end
+
+      # Distribute terminal width proportionally
+      total_max = max_widths.sum
+      if total_max <= terminal
+        # All columns fit — distribute extra space evenly
+        extra = terminal - total_max
+        per_col = extra // n
+        remainder = extra % n
+        return max_widths.map_with_index { |width, idx| width + per_col + (idx < remainder ? 1 : 0) }
+      end
+
+      # Need to compress — allocate proportionally based on max widths
+      widths = max_widths.map do |max_w|
+        {((max_w.to_f32 / total_max) * terminal).to_i, 1}.max
+      end
+
+      # Fix rounding so they sum to terminal
+      delta = terminal - widths.sum
+      i = 0
+      while delta > 0
+        widths[i] += 1
+        i = (i + 1) % n
+        delta -= 1
+      end
+      while delta < 0 && widths.any? { |width| width > 1 }
+        idx = widths.index { |width| width > 1 } || 0
+        widths[idx] -= 1
+        delta += 1
+      end
+
+      widths
+    end
+
+    # Build a lipgloss-styled table for list output.
+    #
+    # Renders headers and data rows using lipgloss StyleTable with
+    # terminal-width-aware column sizing.
+    def self.build_list_table(
+      headers : Array(String),
+      rows : Array(Array(String)),
+      terminal : Int32,
+    ) : String
+      table = Lipgloss::StyleTable::Table.new
+        .border(Lipgloss::Border.hidden)
+
+      # Set headers (up to 8 columns, pad with empty strings)
+      h = headers
+      table.headers(
+        h.fetch(0, ""), h.fetch(1, ""), h.fetch(2, ""), h.fetch(3, ""),
+        h.fetch(4, ""), h.fetch(5, ""), h.fetch(6, ""), h.fetch(7, ""),
+      )
+
+      rows.each { |row| table.row(row) }
+      table.width(terminal)
+      table.render
+    end
   end
 end

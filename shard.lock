@@ -12,6 +12,14 @@ shards:
     git: https://github.com/schovi/baked_file_system.git
     version: 0.14.0+git.commit.425bf6195fb41173216e68e11e5f63e6fc9487da
 
+  bubbletea:
+    git: https://github.com/dsisnero/bubbletea.cr.git
+    version: 2.0.1
+
+  cancel_reader:
+    git: https://github.com/dsisnero/cancel_reader.git
+    version: 0.1.0+git.commit.c727d5163e61afa406a22f6daef4dbcc417adeef
+
   cellwrap:
     git: https://github.com/dsisnero/cellwrap.git
     version: 0.1.0+git.commit.d898f154af8cdf6ac85cfc72a24f4a354be3d88b
@@ -31,6 +39,10 @@ shards:
   golden:
     git: https://github.com/dsisnero/golden.git
     version: 0.1.0+git.commit.82c92f031cbd48f150d8c76d321b5f9211d6d440
+
+  harmonica:
+    git: https://github.com/dsisnero/harmonica.git
+    version: 0.8.0
 
   lipgloss:
     git: https://github.com/dsisnero/lipgloss.git
