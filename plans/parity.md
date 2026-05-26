@@ -71,16 +71,16 @@
 - [x] --full: Status, HEAD±, main↕, Remote, Commit columns
 - [x] Current worktree marker (@)
 - [x] --format=json output
-- [ ] CI status integration
-- [ ] Progressive rendering
-- [ ] Statusline subcommand
+- [x] CI status integration (GitHub via gh run list with ✓/✗/○ symbols)
+- [x] Progressive rendering (skeleton rows + incremental update)
+- [x] Statusline subcommand (wt step statusline)
 
 ### 1.3 `wt remove` ✅
 - [x] --force, --force-delete, --no-delete-branch
 - [x] Pre/post-remove hooks
 - [x] SafeDelete/ForceDelete/Keep modes
 - [x] Current worktree guard
-- [ ] Background removal staging
+- [x] Background removal staging (trash rename + background fiber via stage_worktree_removal)
 - [ ] Recovery from partial operations
 
 ---
@@ -103,8 +103,8 @@
 - [x] hook show — display configured hooks (user + project)
 - [x] hook run <type> — manually trigger hooks
 - [x] Hooks from both user and project config
-- [ ] Hook execution pipeline (concurrent/sequential)
-- [ ] Hook filtering (user:/project: prefix)
+- [x] Hook execution pipeline (concurrent via WaitGroup+Channel, sequential with break on failure)
+- [ ] Hook source filtering (user:/project: prefix in hook show/run)
 - [ ] hook run-pipeline internal stdin protocol
 
 ### 2.4 `wt config` ✅
@@ -114,7 +114,7 @@
 - [ ] config shell {install,uninstall} (moved to `shell` command)
 - [ ] config show --full (resolved config with defaults)
 - [ ] config update (deprecation migration)
-- [ ] config approvals
+- [x] config approvals (approvals.toml persistence, legacy config.toml fallback)
 - [ ] config plugins
 
 ---
@@ -130,7 +130,7 @@
 - [x] shell install — edit rc files
 - [x] shell uninstall — remove integration lines
 - [x] shell completions — bash/zsh/fish completion scripts
-- [ ] nushell, powershell wrappers
+- [x] nushell, powershell wrappers (already in wrapper.cr)
 
 ### 3.2 LLM Integration ✅
 - [x] Commit message generation (pipe diff → external LLM)
