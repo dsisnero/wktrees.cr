@@ -228,5 +228,14 @@ module WorkTrees
     def self.log_info(message : String) : Nil
       puts info_message(message)
     end
+
+    # Fix dim rendering for terminals that don't handle \e[2m after \e[39m.
+    #
+    # Claude Code's terminal doesn't render dim (\e[2m) correctly when it
+    # follows a foreground color reset (\e[39m). This replaces that sequence
+    # with a full reset (\e[0m) before dim, which works correctly.
+    def self.fix_dim_after_color_reset(str : String) : String
+      str.gsub("\e[39m\e[2m", "\e[0m\e[2m")
+    end
   end
 end

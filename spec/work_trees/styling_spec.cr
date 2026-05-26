@@ -230,5 +230,34 @@ module WorkTrees
         result.should contain("comment")
       end
     end
+
+    describe "fix_dim_after_color_reset" do
+      it "replaces foreground reset + dim with full reset + dim" do
+        result = Styling.fix_dim_after_color_reset("\e[39m\e[2m")
+        result.should eq("\e[0m\e[2m")
+      end
+
+      it "preserves surrounding content" do
+        input = "\e[36m?\e[39m\e[2m^\e[22m"
+        result = Styling.fix_dim_after_color_reset(input)
+        result.should eq("\e[36m?\e[0m\e[2m^\e[22m")
+      end
+
+      it "handles multiple occurrences" do
+        input = "a\e[39m\e[2mb\e[39m\e[2mc"
+        result = Styling.fix_dim_after_color_reset(input)
+        result.should eq("a\e[0m\e[2mb\e[0m\e[2mc")
+      end
+
+      it "passes through non-matching text unchanged" do
+        Styling.fix_dim_after_color_reset("no escapes").should eq("no escapes")
+      end
+
+      it "does not replace bold after foreground reset" do
+        input = "\e[39m\e[1m"
+        result = Styling.fix_dim_after_color_reset(input)
+        result.should eq("\e[39m\e[1m")
+      end
+    end
   end
 end
