@@ -1,18 +1,29 @@
 # List item types — Crystal port of worktrunk/src/commands/list/model/item.rs
 #
 # Core data structures for representing worktrees and branches in wt list output.
-# Replaces ad-hoc hashes with structured types.
+# Uses JSON::Serializable for type-safe JSON output.
+
+require "json"
 
 module WorkTrees
   module List
-    # Pre-formatted display strings for a list row (ANSI-styled).
     struct DisplayFields
+      include JSON::Serializable
+
+      @[JSON::Field(key: "ci_status")]
       property ci_status : String?
+
+      @[JSON::Field(key: "working_diff")]
       property working_diff : String?
+
+      @[JSON::Field(key: "upstream")]
       property upstream_status : String?
+
       property summary : String?
       property status : String?
       property commits : String?
+
+      @[JSON::Field(key: "branch_diff")]
       property branch_diff : String?
 
       def initialize(
@@ -27,39 +38,62 @@ module WorkTrees
       end
     end
 
-    # A single item in the wt list output — either a worktree or branch.
     struct ListItem
-      getter branch : String
-      getter worktree_path : String?
-      getter head_sha : String
-      getter? current : Bool
+      include JSON::Serializable
+
+      property branch : String
+      property head : String
+
+      @[JSON::Field(key: "worktree_path")]
+      property worktree_path : String?
+
+      property? current : Bool
 
       def initialize(
         @branch : String,
         @worktree_path : String? = nil,
-        @head_sha : String = "",
+        @head : String = "",
         @current : Bool = false,
       )
       end
 
-      # Display name for the branch (may include remote/ prefix).
       def display_name : String
         @branch
       end
     end
 
-    # ListData pairs a ListItem with its computed DisplayFields and counts.
     struct ListData
-      getter item : ListItem
-      getter fields : DisplayFields
-      getter ahead : Int32
-      getter behind : Int32
+      include JSON::Serializable
+
+      property branch : String
+      property head : String
+      property worktree_path : String?
+      property? current : Bool
+      property ahead : Int32
+      property behind : Int32
+
+      @[JSON::Field(key: "ci_status")]
+      property ci_status : String?
+
+      @[JSON::Field(key: "working_diff")]
+      property working_diff : String?
+
+      @[JSON::Field(key: "upstream")]
+      property upstream_status : String?
+
+      property summary : String?
 
       def initialize(
-        @item : ListItem,
-        @fields : DisplayFields = DisplayFields.new,
+        @branch : String,
+        @head : String = "",
+        @worktree_path : String? = nil,
+        @current : Bool = false,
         @ahead : Int32 = 0,
         @behind : Int32 = 0,
+        @ci_status : String? = nil,
+        @working_diff : String? = nil,
+        @upstream_status : String? = nil,
+        @summary : String? = nil,
       )
       end
     end
