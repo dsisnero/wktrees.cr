@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/max-sixty/worktrunk (Rust, v0.51.0)
 **Pinned:** `8c6ed7e3f68efb3bac43c420d136f5360ff24d54` (`vendor/worktrunk`)
-**Status:** 71 commits, 419 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). Port inventory: 1596 partial, 391 skipped, 1716 missing.
+**Status:** 71+26=97 commits, 506 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). All Phase 0-4 complete. All Phase 5 features (5.1-5.8) complete. Port coverage: 1596 partial, 391 skipped, 1716 missing (mostly upstream tests, picker, plugins — all deferred).
 
 ---
 
