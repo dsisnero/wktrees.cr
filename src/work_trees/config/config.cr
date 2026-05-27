@@ -14,6 +14,8 @@ module WorkTrees
       property commit_config : CommitConfig
       property merge_config : MergeConfig
       property list_config : ListConfig
+      property remove_config : RemoveConfig
+      property switch_config : SwitchConfig
 
       DEFAULT_PATH_TEMPLATE = "~/worktrees/{{ branch | sanitize }}"
 
@@ -23,6 +25,8 @@ module WorkTrees
         @commit_config : CommitConfig = CommitConfig.new,
         @merge_config : MergeConfig = MergeConfig.new,
         @list_config : ListConfig = ListConfig.new,
+        @remove_config : RemoveConfig = RemoveConfig.new,
+        @switch_config : SwitchConfig = SwitchConfig.new,
       )
       end
     end

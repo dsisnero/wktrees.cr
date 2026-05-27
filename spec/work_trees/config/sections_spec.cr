@@ -142,4 +142,42 @@ module WorkTrees::Config
       merged.branches?.should be_true
     end
   end
+
+  describe RemoveConfig do
+    it "defaults delete_branch to true" do
+      cfg = RemoveConfig.new
+      cfg.delete_branch?.should be_true
+    end
+
+    it "can disable branch deletion" do
+      cfg = RemoveConfig.new(delete_branch: false)
+      cfg.delete_branch?.should be_false
+    end
+
+    it "merges project over user" do
+      user = RemoveConfig.new(delete_branch: true)
+      project = RemoveConfig.new(delete_branch: false)
+      merged = user.merge_with(project)
+      merged.delete_branch?.should be_false
+    end
+  end
+
+  describe SwitchConfig do
+    it "defaults cd to true" do
+      cfg = SwitchConfig.new
+      cfg.cd?.should be_true
+    end
+
+    it "can disable auto-cd" do
+      cfg = SwitchConfig.new(cd: false)
+      cfg.cd?.should be_false
+    end
+
+    it "merges project over user" do
+      user = SwitchConfig.new(cd: true)
+      project = SwitchConfig.new(cd: false)
+      merged = user.merge_with(project)
+      merged.cd?.should be_false
+    end
+  end
 end

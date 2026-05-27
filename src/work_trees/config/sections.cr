@@ -176,5 +176,31 @@ module WorkTrees
         )
       end
     end
+
+    struct RemoveConfig
+      property? delete_branch : Bool = true
+
+      def initialize(@delete_branch : Bool = true)
+      end
+
+      def merge_with(other : RemoveConfig) : RemoveConfig
+        RemoveConfig.new(
+          delete_branch: other.delete_branch?,
+        )
+      end
+    end
+
+    struct SwitchConfig
+      property? cd : Bool = true
+
+      def initialize(@cd : Bool = true)
+      end
+
+      def merge_with(other : SwitchConfig) : SwitchConfig
+        SwitchConfig.new(
+          cd: other.cd?,
+        )
+      end
+    end
   end
 end
