@@ -145,6 +145,8 @@ PORTED_MODULES = {
   # Recovery (newly ported)
   "src/commands/worktree/finish.rs"=> "src/work_trees/git/recovery.cr",
   "src/git/recover.rs"             => "src/work_trees/git/recovery.cr",
+  # List render (newly ported)
+  "src/commands/list/render.rs"     => "src/work_trees/list/render.cr",
 }
 
 # Files that are intentionally skipped (build artifacts, docs/demos, etc.)
