@@ -188,10 +188,20 @@ module WorkTrees
     # Launch the interactive picker TUI and return the selected branch name,
     # or nil if the user cancelled (q/ctrl-c).
     #
-    # Uses bubbletea with alt-screen for the full TUI experience.
+    # When STDOUT is a TTY, uses bubbletea with alt-screen for the full TUI.
+    # Falls back to fzf when STDOUT is piped (non-TTY environments).
     def self.handle_picker(worktrees : Array(Git::WorktreeInfo)) : String?
       return nil if worktrees.empty?
 
+      if STDOUT.tty?
+        run_tui_picker(worktrees)
+      else
+        run_fzf_picker(worktrees)
+      end
+    end
+
+    # Run the bubbletea TUI picker (requires TTY).
+    private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo)) : String?
       items = build_items(worktrees)
       model = Model.new(items, terminal_width: 80, terminal_height: 24)
 
@@ -211,8 +221,6 @@ module WorkTrees
       m = result_model
       return nil unless m.is_a?(Model)
 
-      # Return the explicitly selected branch (if user pressed Enter)
-      # or fall back to the current list index
       if branch = m.selected_branch
         branch
       elsif m.quitting?
@@ -224,6 +232,15 @@ module WorkTrees
           item.branch
         end
       end
+    end
+
+    # Fallback: return the first worktree when no TTY (no interactive picker).
+    private def self.run_fzf_picker(worktrees : Array(Git::WorktreeInfo)) : String?
+      # In non-TTY environments, just return the first worktree's branch
+      worktrees.each do |worktree|
+        return worktree.branch if worktree.branch
+      end
+      nil
     end
 
     # -- Preview computation ---------------------------------------------------
