@@ -15,8 +15,8 @@ dependencies:
     github: crystal-community/toml.cr
   lipgloss:
     github: dsisnero/lipgloss
-  bubbletea:
-    github: dsisnero/bubbletea.cr
+  bubbles:
+    github: dsisnero/bubbles
 
 development_dependencies:
   ameba:

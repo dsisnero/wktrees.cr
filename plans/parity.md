@@ -63,7 +63,7 @@
 - [x] Pre/post-start hooks, pre/post-switch hooks
 - [x] cd directive file protocol (WORKTRUNK_DIRECTIVE_CD_FILE)
 - [x] pr:N/mr:N resolution (gh/glab CLI)
-- [ ] Interactive picker (deferred)
+- [ ] Interactive picker (deferred) → see plans/interactive_picker.md
 - [x] pr:N/mr:N fetch + checkout (fetches remote branch, fork handling)
 
 ### 1.2 `wt list` ✅
