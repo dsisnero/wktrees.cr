@@ -214,6 +214,17 @@ module WorkTrees
         lines << Styling.dim("    branch: #{info.source_branch} → #{info.base_branch}")
         lines.join('\n')
       end
+
+      # Build the full tracking ref path (e.g., "refs/pull/123/head").
+      def self.tracking_ref(ref_type : Symbol, number : UInt32) : String
+        "refs/#{ref_path_for(ref_type, number)}"
+      end
+
+      # Generate the local branch name for a remote ref.
+      # Uses the source branch name directly (vendor behavior).
+      def self.local_branch_name(source_branch : String) : String
+        source_branch
+      end
     end
   end
 end

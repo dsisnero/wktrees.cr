@@ -98,5 +98,21 @@ module WorkTrees
         Git::PrResolver.fork_refspec(123_u32).should eq("+refs/pull/123/head:refs/remotes/pull/123/head")
       end
     end
+
+    describe "tracking_ref" do
+      it "builds full tracking ref for GitHub PR" do
+        Git::PrResolver.tracking_ref(:pr, 123_u32).should eq("refs/pull/123/head")
+      end
+
+      it "builds full tracking ref for GitLab MR" do
+        Git::PrResolver.tracking_ref(:mr, 42_u32).should eq("refs/merge-requests/42/head")
+      end
+    end
+
+    describe "local_branch_name" do
+      it "returns source branch name unchanged" do
+        Git::PrResolver.local_branch_name("feature/fix").should eq("feature/fix")
+      end
+    end
   end
 end
