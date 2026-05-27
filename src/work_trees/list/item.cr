@@ -96,6 +96,31 @@ module WorkTrees
         @summary : String? = nil,
       )
       end
+
+      # Single-line status output for shell prompts.
+      #
+      # Format: `branch  ↑a  ↓b  +N -M  ✓  summary`
+      def statusline : String
+        parts = [@branch]
+
+        if @ahead > 0
+          parts << Styling.green("↑#{@ahead}")
+        end
+        if @behind > 0
+          parts << Styling.red("↓#{@behind}")
+        end
+        if wd = @working_diff
+          parts << wd unless wd.empty?
+        end
+        if ci = @ci_status
+          parts << ci unless ci.empty?
+        end
+        if s = @summary
+          parts << s unless s.empty?
+        end
+
+        parts.join("  ")
+      end
     end
   end
 end

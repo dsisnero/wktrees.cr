@@ -101,5 +101,47 @@ module WorkTrees
         json.should_not contain("working_diff")
       end
     end
+
+    describe "statusline" do
+      it "formats branch with ahead/behind indicators" do
+        data = List::ListData.new(
+          branch: "feature/fix", ahead: 3, behind: 1,
+        )
+        line = data.statusline
+        line.should contain("feature/fix")
+        line.should contain("↑")
+        line.should contain("↓")
+      end
+
+      it "formats clean branch without indicators" do
+        data = List::ListData.new(branch: "main")
+        line = data.statusline
+        line.should contain("main")
+      end
+
+      it "includes working diff when present" do
+        data = List::ListData.new(
+          branch: "feature", working_diff: "+5 -2",
+        )
+        line = data.statusline
+        line.should contain("+5")
+      end
+
+      it "includes CI status when present" do
+        data = List::ListData.new(
+          branch: "feature", ci_status: "✓",
+        )
+        line = data.statusline
+        line.should contain("✓")
+      end
+
+      it "includes summary when present" do
+        data = List::ListData.new(
+          branch: "feature", summary: "fix: login bug",
+        )
+        line = data.statusline
+        line.should contain("fix: login bug")
+      end
+    end
   end
 end
