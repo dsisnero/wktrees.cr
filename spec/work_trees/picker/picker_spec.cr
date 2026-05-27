@@ -74,4 +74,39 @@ module WorkTrees
       end
     end
   end
+
+  describe Picker::Model do
+    it "initializes with items in list" do
+      items = [
+        Picker::PickerItem.new(branch: "main", worktree_path: "/repo"),
+        Picker::PickerItem.new(branch: "feature/x", worktree_path: "/wt/feat"),
+      ]
+      model = Picker::Model.new(items, terminal_width: 80, terminal_height: 24)
+      model.item_count.should eq(2)
+    end
+
+    it "defaults preview mode to WorkingTree" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.preview_mode.should eq(Picker::PreviewMode::WorkingTree)
+    end
+
+    it "has a list that is not nil" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.list.should_not be_nil
+    end
+
+    it "has a viewport that is not nil" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.viewport.should_not be_nil
+    end
+  end
 end

@@ -67,5 +67,90 @@ module WorkTrees
         )
       end
     end
+
+    # Elm model for the interactive picker TUI.
+    class Model
+      include Tea::Model
+
+      getter list : Bubbles::List::Model
+      getter viewport : Bubbles::Viewport::Model
+      property preview_mode : PreviewMode
+      getter items : Array(PickerItem)
+      getter? quitting : Bool
+
+      def initialize(
+        @items : Array(PickerItem),
+        terminal_width : Int32,
+        terminal_height : Int32,
+      )
+        @preview_mode = PreviewMode::WorkingTree
+        @quitting = false
+
+        # Build list component
+        delegate = Bubbles::List.new_default_delegate
+        delegate.styles = Bubbles::List.new_default_item_styles(is_dark: true)
+        list_items = @items.map(&.as(Bubbles::List::Item))
+        @list = Bubbles::List::Model.new(
+          list_items, delegate, terminal_width // 2, terminal_height - 3,
+        )
+        @list.show_status_bar = true
+
+        # Build viewport for preview
+        @viewport = Bubbles::Viewport::Model.new(
+          Bubbles::Viewport.with_width(terminal_width // 2),
+          Bubbles::Viewport.with_height(terminal_height - 3),
+        )
+        @viewport.soft_wrap = true
+      end
+
+      def item_count : Int32
+        @items.size
+      end
+
+      def init : Tea::Cmd?
+        nil
+      end
+
+      def update(msg : Tea::Msg) : {Tea::Model, Tea::Cmd?}
+        case msg
+        when Tea::KeyPressMsg
+          case msg.to_s
+          when "q", "ctrl+c"
+            @quitting = true
+            {self, Tea.quit}
+          when "1" then switch_preview_mode(PreviewMode::WorkingTree)
+          when "2" then switch_preview_mode(PreviewMode::Log)
+          when "3" then switch_preview_mode(PreviewMode::BranchDiff)
+          when "4" then switch_preview_mode(PreviewMode::UpstreamDiff)
+          when "5" then switch_preview_mode(PreviewMode::Summary)
+          else
+            # Delegate to list for cursor/filter navigation
+            list_model, cmd = @list.update(msg)
+            @list = list_model
+            {self, cmd}
+          end
+        else
+          # Delegate unknown messages to list
+          list_model, cmd = @list.update(msg)
+          @list = list_model
+          {self, cmd}
+        end
+      end
+
+      def view : Tea::View
+        left = @list.view
+        right = @viewport.view
+        content = Lipgloss.join_horizontal(
+          Lipgloss::Position::Top,
+          left, right,
+        )
+        Tea::View.new(content)
+      end
+
+      private def switch_preview_mode(mode : PreviewMode) : {Tea::Model, Tea::Cmd?}
+        @preview_mode = mode
+        {self, nil}
+      end
+    end
   end
 end
