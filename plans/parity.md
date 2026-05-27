@@ -113,9 +113,9 @@
 - [x] [aliases] parsed and dispatched
 - [x] config shell {install,uninstall} (moved to `shell` command)
 - [x] config show --full (resolved config with defaults, hooks, aliases, state)
-- [ ] config update (deprecation migration) → Phase 5.1
+- [x] config update (deprecation migration) → Phase 5.1 complete
 - [x] config approvals (approvals.toml persistence, legacy config.toml fallback)
-- [ ] config plugins → Phase 5
+- [ ] config plugins → deferred
 
 ---
 
