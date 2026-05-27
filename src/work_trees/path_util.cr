@@ -24,5 +24,16 @@ module WorkTrees
         path
       end
     end
+
+    # Expand ~ at the start of a path to the user's home directory.
+    def self.expand_home(path : String) : String
+      if path == "~"
+        Path.home.to_s
+      elsif path.starts_with?("~/")
+        File.join(Path.home.to_s, path[2..])
+      else
+        path
+      end
+    end
   end
 end

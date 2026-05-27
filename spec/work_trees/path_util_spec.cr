@@ -51,5 +51,21 @@ module WorkTrees
         result.should contain("/tmp/worktrees/feature")
       end
     end
+    describe "tilde_expand" do
+      it "expands leading ~ to home directory" do
+        result = PathUtil.expand_home("~/worktrees/feature")
+        result.should contain("/worktrees/feature")
+        result.should_not contain("~/")
+      end
+
+      it "passes through non-tilde paths" do
+        PathUtil.expand_home("/tmp/feature").should eq("/tmp/feature")
+      end
+
+      it "handles just ~" do
+        result = PathUtil.expand_home("~")
+        result.should eq(Path.home.to_s)
+      end
+    end
   end
 end

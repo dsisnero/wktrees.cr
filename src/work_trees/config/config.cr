@@ -178,7 +178,7 @@ module WorkTrees
 
     # Default config file path.
     def self.default_config_path : String
-      home = ENV["HOME"]? || ENV["USERPROFILE"]? || ""
+      home = Path.home.to_s
       File.join(home, ".config", "worktrees", "config.toml")
     end
 

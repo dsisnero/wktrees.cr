@@ -806,7 +806,7 @@ module WorkTrees
       worktree_path = Template.expand(path_template, vars)
       # Expand ~ to home directory
       if worktree_path.starts_with?("~/")
-        home = ENV["HOME"]? || "."
+        home = Path.home.to_s
         worktree_path = File.join(home, worktree_path[2..])
       end
       worktree_path = File.expand_path(worktree_path)
@@ -2434,7 +2434,7 @@ module WorkTrees
         vars = {"branch" => branch, "repo" => File.basename(repo.discovery_path)}
         expected_path = Template.expand(config.worktree_path_template, vars)
         expected_path = if expected_path.starts_with?("~/")
-                          File.join(ENV["HOME"] || ".", expected_path[2..])
+                          File.join(Path.home.to_s, expected_path[2..])
                         else
                           File.expand_path(expected_path)
                         end
