@@ -202,5 +202,35 @@ module WorkTrees
         )
       end
     end
+
+    # Project-level forge configuration.
+    #
+    # Specifies the forge platform (github, gitlab, gitea, azure-devops)
+    # and optional hostname for self-hosted instances.
+    # Ported from vendor/worktrunk/src/config/project.rs
+    struct ProjectForgeConfig
+      property platform : String?
+      property hostname : String?
+
+      def initialize(@platform : String? = nil, @hostname : String? = nil)
+      end
+
+      def merge_with(other : ProjectForgeConfig) : ProjectForgeConfig
+        ProjectForgeConfig.new(
+          platform: other.platform || platform,
+          hostname: other.hostname || hostname,
+        )
+      end
+
+      # Detect CiPlatform from the platform string.
+      def ci_platform? : CiPlatform?
+        case @platform
+        when "github"       then CiPlatform::GitHub
+        when "gitlab"       then CiPlatform::GitLab
+        when "gitea"        then CiPlatform::Gitea
+        when "azure-devops" then CiPlatform::Azure
+        end
+      end
+    end
   end
 end
