@@ -142,6 +142,9 @@ PORTED_MODULES = {
   "src/git/repository/branches.rs"=> "src/work_trees/git/branches.cr",
   "src/git/repository/ref_snapshot.rs"=> "src/work_trees/git/ref_snapshot.cr",
   "src/git/repository/sha_cache.rs"=> "src/work_trees/git/sha_cache.cr",
+  # Recovery (newly ported)
+  "src/commands/worktree/finish.rs"=> "src/work_trees/git/recovery.cr",
+  "src/git/recover.rs"             => "src/work_trees/git/recovery.cr",
 }
 
 # Files that are intentionally skipped (build artifacts, docs/demos, etc.)

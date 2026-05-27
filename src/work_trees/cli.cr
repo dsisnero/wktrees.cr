@@ -1683,22 +1683,40 @@ module WorkTrees
 
     private def self.cleanup_after_merge(repo, branch, target_branch)
       puts "◎ Cleaning up #{branch} worktree..."
+      result = Git::Recovery::CleanupResult.new
+
       if wt_path = repo.worktree_for_branch(branch)
         begin
           repo.remove_worktree(wt_path)
-          if Git::Integration.check(repo, branch, target_branch)
+          result.worktree_removed = true
+
+          integrated = Git::Integration.check(repo, branch, target_branch)
+          if integrated
             repo.delete_branch(branch, Git::BranchDeletionMode::SafeDelete)
+            result.branch_deleted = true
             puts "✓ Removed #{branch} worktree and branch"
           else
             puts "✓ Removed #{branch} worktree (branch kept — not integrated)"
           end
+
           if target_path = repo.worktree_for_branch(target_branch)
+            result.cd_path = target_path
             emit_cd_directive(target_path)
           end
         rescue ex : Git::CommandError | CmdError
-          puts "! Could not remove worktree: #{ex.message}"
+          STDERR.puts Styling.warning_message("Could not remove worktree: #{ex.message}")
+          # Try staged removal as fallback
+          begin
+            repo.stage_worktree_removal(wt_path, force: false)
+            result.worktree_removed = true
+            STDERR.puts Styling.hint_message("Worktree staged for background removal")
+          rescue
+            STDERR.puts Styling.error_message("Failed to stage worktree for removal")
+          end
         end
       end
+
+      result
     end
 
     def self.shell(args : Array(String))

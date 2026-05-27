@@ -81,7 +81,7 @@
 - [x] SafeDelete/ForceDelete/Keep modes
 - [x] Current worktree guard
 - [x] Background removal staging (trash rename + background fiber via stage_worktree_removal)
-- [ ] Recovery from partial operations → Phase 5
+- [x] Recovery from partial operations → Git::Recovery module (backup paths, staged fallback, cleanup results)
 
 ---
 
