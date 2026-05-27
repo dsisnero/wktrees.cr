@@ -10,9 +10,7 @@ require "wait_group"
 module WorkTrees
   module CLI
     def self.run(args = ARGV)
-      # Initialize output verbosity from flags before dispatch
       Output.init_from_flags(args)
-
       return if handle_global_flags(args)
 
       if args.empty?
@@ -23,6 +21,13 @@ module WorkTrees
       command = args[0]
       command_args = args[1..]
 
+      # Trace main command execution when -vv is active
+      Trace.span("cli.#{command}") do
+        dispatch(command, command_args)
+      end
+    end
+
+    private def self.dispatch(command : String, command_args : Array(String))
       case command
       when "list"
         Commands.list(command_args)

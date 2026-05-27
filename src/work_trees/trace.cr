@@ -13,11 +13,10 @@ module WorkTrees
   module Trace
     # Monotonic epoch for trace timestamps — all ts fields are
     # microseconds since this point.
-    EPOCH = Time.monotonic
+    EPOCH = Time.instant
 
-    # Current monotonic timestamp in microseconds.
     def self.now_us : UInt64
-      (Time.monotonic - EPOCH).total_microseconds.to_u64
+      (Time.instant - EPOCH).total_microseconds.to_u64
     end
 
     # Whether trace logging is enabled (WORKTREES_VERBOSE=2 or -vv).
@@ -87,11 +86,11 @@ module WorkTrees
 
       def initialize(@name : String)
         @start_ts = Trace.now_us
-        @start_time = Time.monotonic
+        @start_time = Time.instant
       end
 
       def done : Nil
-        dur = Time.monotonic - @start_time
+        dur = Time.instant - @start_time
         dur_us = dur.total_microseconds.to_u64
         record = Trace.format_span(@name, @start_ts, Trace.thread_id, dur_us)
         Trace.emit(record)
@@ -112,9 +111,9 @@ module WorkTrees
     #   result = Trace.span("config_load") { load_config }
     def self.span(name : String, &)
       start_ts = now_us
-      start_time = Time.monotonic
+      start_time = Time.instant
       result = yield
-      dur = Time.monotonic - start_time
+      dur = Time.instant - start_time
       dur_us = dur.total_microseconds.to_u64
       record = format_span(name, start_ts, thread_id, dur_us)
       emit(record)
