@@ -6,27 +6,27 @@ describe WorkTrees::Shell do
       result = WorkTrees::Shell.generate(:bash, "wt")
       result.should contain("wt()")
       result.should contain("command wt")
-      result.should contain("work_trees shell integration for bash")
+      result.should contain("wktrees shell integration for bash")
     end
 
     it "generates zsh wrapper" do
       result = WorkTrees::Shell.generate(:zsh, "wt")
       result.should contain("wt()")
       result.should contain("command wt")
-      result.should contain("work_trees shell integration for zsh")
+      result.should contain("wktrees shell integration for zsh")
     end
 
     it "generates fish wrapper" do
       result = WorkTrees::Shell.generate(:fish, "wt")
       result.should contain("function wt")
       result.should contain("command wt")
-      result.should contain("work_trees shell integration for fish")
+      result.should contain("wktrees shell integration for fish")
     end
 
     it "generates nushell wrapper" do
       result = WorkTrees::Shell.generate(:nu, "wt")
       result.should contain("def --env --wrapped wt")
-      result.should contain("work_trees shell integration for nu")
+      result.should contain("wktrees shell integration for nu")
     end
 
     it "generates powershell wrapper" do

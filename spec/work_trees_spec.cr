@@ -4,6 +4,6 @@ describe WorkTrees do
   # TODO: Write tests
 
   it "has a version" do
-    WorkTrees::VERSION.should eq("0.1.0")
+    WorkTrees::VERSION.should eq("0.2.0")
   end
 end

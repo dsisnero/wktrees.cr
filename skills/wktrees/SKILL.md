@@ -1,8 +1,8 @@
 ---
 name: wktrees
-description: Guidance for wktrees (the `work_trees` CLI) — git worktree management, hooks, and config. Load when editing .config/wt.toml or ~/.config/worktrees/config.toml; adding, modifying, or debugging hooks; configuring commit message generation or command aliases; or troubleshooting wktrees behavior.
+description: Guidance for wktrees (the `wktrees` CLI) — git worktree management, hooks, and config. Load when editing .config/wt.toml or ~/.config/worktrees/config.toml; adding, modifying, or debugging hooks; configuring commit message generation or command aliases; or troubleshooting wktrees behavior.
 license: MIT
-compatibility: Requires the `work_trees` CLI (Crystal port of worktrunk)
+compatibility: Requires the `wktrees` CLI (Crystal port of worktrunk)
 ---
 
 # wktrees
@@ -70,13 +70,13 @@ When a user asks for configuration help, determine which type based on:
    Ask: "Should I add this to your config?"
 
 4. **After approval, apply**
-   - Check if config exists: `work_trees config show`
-   - If not, guide through `work_trees config create`
+   - Check if config exists: `wktrees config show`
+   - If not, guide through `wktrees config create`
    - Read, modify, write preserving structure
 
 5. **Suggest testing**
    ```bash
-   work_trees step commit --show-prompt  # verify prompt builds
+   wktrees step commit --show-prompt  # verify prompt builds
    ```
 
 ### Setting Up Project Hooks (Project Config)
@@ -125,7 +125,7 @@ Common request for workflow automation. Follow discovery process:
 
 7. **Suggest testing**
    ```bash
-   work_trees switch --create test-hooks
+   wktrees switch --create test-hooks
    ```
 
 ### Adding Hooks to Existing Config
@@ -228,22 +228,22 @@ work_trees step for-each '<command>'
 
 ## Hook Approvals in Non-Interactive Sessions
 
-Project hooks and project aliases prompt for approval on first run, so an untrusted `.config/wt.toml` can't silently execute arbitrary commands. Agents running `work_trees merge`, `work_trees switch`, or other commands that trigger hooks will hit an error like:
+Project hooks and project aliases prompt for approval on first run, so an untrusted `.config/wt.toml` can't silently execute arbitrary commands. Agents running `wktrees merge`, `wktrees switch`, or other commands that trigger hooks will hit an error like:
 
 ```
 ▲ cargo-difftest needs approval to execute 1 command:
 ○ post-merge install:
   cargo install --path .
 ✗ Cannot prompt for approval in non-interactive environment
-↳ To skip prompts in CI/CD, add --yes; to pre-approve commands, run work_trees config approvals add
+↳ To skip prompts in CI/CD, add --yes; to pre-approve commands, run wktrees config approvals add
 ```
 
 Two resolutions exist — pick based on who the agent is running for:
 
-- **`work_trees config approvals add`** — interactive prompt that stores approvals to `~/.config/worktrees/approvals.toml`. Run once per project; persists across invocations until the command template changes or the project moves. This is the right choice when the human owns the trust decision.
+- **`wktrees config approvals add`** — interactive prompt that stores approvals to `~/.config/worktrees/approvals.toml`. Run once per project; persists across invocations until the command template changes or the project moves. This is the right choice when the human owns the trust decision.
 - **`--yes`** / `-y` — bypasses approval for a single invocation. Appropriate for CI/CD where hook contents are controlled by the pipeline itself.
 
-**When invoked as an agent, stop and escalate to the user** — pre-approval is a security decision about whether this project's hooks should be trusted to run arbitrary commands on their machine. Tell the user to run `work_trees config approvals add` (or review and re-run with `--yes` if they accept the CI-style one-shot bypass). Don't reach for `--yes` on the user's behalf just to unblock the command.
+**When invoked as an agent, stop and escalate to the user** — pre-approval is a security decision about whether this project's hooks should be trusted to run arbitrary commands on their machine. Tell the user to run `wktrees config approvals add` (or review and re-run with `--yes` if they accept the CI-style one-shot bypass). Don't reach for `--yes` on the user's behalf just to unblock the command.
 
 ## Advanced: Agent Handoffs
 
@@ -256,7 +256,7 @@ tmux new-session -d -s <branch-name> "work_trees switch --create <branch-name> -
 
 **Zellij** (check `$ZELLIJ` env var):
 ```bash
-zellij run -- work_trees switch --create <branch-name> -x <agent-cli> -- '<task description>'
+zellij run -- wktrees switch --create <branch-name> -x <agent-cli> -- '<task description>'
 ```
 
 **Requirements** (all must be true):
@@ -289,4 +289,4 @@ All edits must stay in that worktree.
 
 `--no-cd` skips the shell-integration cd script the parent can't consume; `--no-hooks` is appropriate when each sub-Agent will run its own build/test step and you don't need post-start setup repeated per worktree.
 
-**Do not** use `Agent { isolation: "worktree" }` for this. Pre-creating with `work_trees switch --create` keeps path, branch, and hook target aligned.
+**Do not** use `Agent { isolation: "worktree" }` for this. Pre-creating with `wktrees switch --create` keeps path, branch, and hook target aligned.

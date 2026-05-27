@@ -1,9 +1,9 @@
 ---
 name: wt-switch-create
-description: Create a new work_trees worktree (optionally in another repo) and switch this session's working directory into it. Use when launching a session that should work in its own worktree (e.g. `/wt-switch-create my-branch -- <task>`, or `/wt-switch-create my-branch ~/workspace/other-repo -- <task>`), or mid-session to move work into a fresh branch.
+description: Create a new wktrees worktree (optionally in another repo) and switch this session's working directory into it. Use when launching a session that should work in its own worktree (e.g. `/wt-switch-create my-branch -- <task>`, or `/wt-switch-create my-branch ~/workspace/other-repo -- <task>`), or mid-session to move work into a fresh branch.
 argument-hint: "<branch-name> [<repo>] [-- task...]"
 license: MIT
-compatibility: Requires the `work_trees` CLI (Crystal port of worktrunk)
+compatibility: Requires the `wktrees` CLI (Crystal port of worktrunk)
 ---
 
 Arguments: `$ARGUMENTS`. Grammar: `<branch> [<repo>] [-- <task>]`.
@@ -27,10 +27,10 @@ after it. Otherwise the task starts at the second token.
 ## What to do
 
 1. **First action — before reading any files or running any commands:**
-   - `work_trees switch --create <branch-name>` — creates or re-enters the worktree
-   - `work_trees switch --create` is idempotent: if the branch already exists, this
+   - `wktrees switch --create <branch-name>` — creates or re-enters the worktree
+   - `wktrees switch --create` is idempotent: if the branch already exists, this
      just re-enters its worktree.
-   - If `work_trees switch --create` fails (not a git repo, invalid branch name, etc.),
+   - If `wktrees switch --create` fails (not a git repo, invalid branch name, etc.),
      report the error and stop — do not fall back to working in the original
      directory, since that defeats the purpose.
 
@@ -40,7 +40,7 @@ after it. Otherwise the task starts at the second token.
 
 ## Cleanup
 
-Don't remove the worktree yourself. Run `work_trees remove` (if the
+Don't remove the worktree yourself. Run `wktrees remove` (if the
 user asks to leave). A worktree with uncommitted
 changes won't be auto-removed without confirmation — that's intended.
 

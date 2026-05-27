@@ -12,7 +12,7 @@ module WorkTrees
   module Shell
     # Template for bash shell wrapper.
     BASH_TEMPLATE = <<-BASH
-    # work_trees shell integration for {{ shell_name }}
+    # wktrees shell integration for {{ shell_name }}
 
     if command -v {{ cmd }} >/dev/null 2>&1; then
         {{ cmd }}() {
@@ -58,7 +58,7 @@ module WorkTrees
 
     # Template for zsh shell wrapper.
     ZSH_TEMPLATE = <<-ZSH
-    # work_trees shell integration for {{ shell_name }}
+    # wktrees shell integration for {{ shell_name }}
 
     if (( ${+commands[{{ cmd }}]} )); then
         {{ cmd }}() {
@@ -100,7 +100,7 @@ module WorkTrees
 
     # Template for fish shell wrapper.
     FISH_TEMPLATE = <<-FISH
-    # work_trees shell integration for {{ shell_name }}
+    # wktrees shell integration for {{ shell_name }}
 
     if command -q {{ cmd }}
         function {{ cmd }}
@@ -143,7 +143,7 @@ module WorkTrees
 
     # Template for nushell wrapper.
     NU_TEMPLATE = <<-NU
-    # work_trees shell integration for {{ shell_name }}
+    # wktrees shell integration for {{ shell_name }}
 
     export def --env --wrapped {{ cmd }} [...args] {
         let cd_file = (mktemp --tmpdir)
@@ -176,7 +176,7 @@ module WorkTrees
 
     # Template for powershell wrapper.
     PS_TEMPLATE = <<-PS
-    # work_trees shell integration for {{ shell_name }}
+    # wktrees shell integration for {{ shell_name }}
 
     function Invoke-{{ cmd }} {
         $cdFile = New-TemporaryFile
@@ -204,7 +204,7 @@ module WorkTrees
     PS
 
     # Generate a shell wrapper for the given shell type and command name.
-    def self.generate(shell : Symbol, cmd : String = "work_trees") : String
+    def self.generate(shell : Symbol, cmd : String = "wktrees") : String
       template = case shell
                  when :bash            then BASH_TEMPLATE
                  when :zsh             then ZSH_TEMPLATE

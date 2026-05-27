@@ -1,11 +1,11 @@
-name: work_trees
+name: wktrees
 version: 0.1.0
 
 authors:
   - Dominic Sisneros <dsisnero@gmail.com>
 
 targets:
-  work_trees:
+  wktrees:
     main: src/cli.cr
 
 crystal: '>= 1.20.2'

@@ -1,4 +1,4 @@
-# CLI entry point for work_trees — Crystal port of worktrunk
+# CLI entry point for wktrees — Crystal port of worktrunk
 #
 # Uses Crystal's built-in OptionParser from stdlib.
 
@@ -57,7 +57,7 @@ module WorkTrees
         return true
       end
       if args.delete("--version") || args.delete("-V")
-        puts "work_trees #{WorkTrees::VERSION}"
+        puts "wktrees #{WorkTrees::VERSION}"
         return true
       end
       if args.delete("--yes") || args.delete("-y")
@@ -74,7 +74,7 @@ module WorkTrees
       end
 
       STDERR.puts "Unknown command: #{command}"
-      STDERR.puts "Run 'work_trees help' for usage."
+      STDERR.puts "Run 'wktrees help' for usage."
       exit 1
     end
 
@@ -88,7 +88,7 @@ module WorkTrees
       cmd = aliases[name]
       puts "▶ #{name}: #{cmd}"
 
-      # Parse the alias body as a work_trees command
+      # Parse the alias body as a wktrees command
       parts = cmd.split(' ', 2)
       alias_cmd = parts[0]
       alias_args = parts[1]?.try(&.split(' ')) || [] of String
@@ -101,11 +101,11 @@ module WorkTrees
     end
 
     def self.print_help
-      puts "work_trees #{WorkTrees::VERSION}"
+      puts "wktrees #{WorkTrees::VERSION}"
       puts "A CLI for Git worktree management, designed for parallel AI agent workflows."
       puts ""
       puts "USAGE:"
-      puts "    work_trees <command> [options]"
+      puts "    wktrees <command> [options]"
       puts ""
       puts "COMMANDS:"
       puts "    list     List all worktrees with branch info"
@@ -127,7 +127,7 @@ module WorkTrees
       json_output = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees list [options]"
+        parser.banner = "Usage: wktrees list [options]"
         parser.on("-f", "--full", "Show full details") { full = true }
         parser.on("--format=FORMAT", "Output format: table or json") { |fmt| format = fmt }
         parser.on("--json", "Output in JSON format") { json_output = true }
@@ -685,7 +685,7 @@ module WorkTrees
       no_hooks = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees switch [options] [branch]"
+        parser.banner = "Usage: wktrees switch [options] [branch]"
         parser.on("-c", "--create", "Create a new branch and worktree") { create = true }
         parser.on("-b BASE", "--base=BASE", "Base branch for the new worktree") { |b| base_branch = b }
         parser.on("-x CMD", "--execute=CMD", "Execute a command after switching") { |cmd| execute_cmd = cmd }
@@ -957,7 +957,7 @@ module WorkTrees
       branch : String? = nil
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees remove [options] [branch]"
+        parser.banner = "Usage: wktrees remove [options] [branch]"
         parser.on("-f", "--force", "Force removal of dirty worktree") { force = true }
         parser.on("-D", "--force-delete", "Force delete branch even if not merged") { force_delete = true }
         parser.on("--no-delete-branch", "Keep the branch after removing worktree") { keep_branch = true }
@@ -1038,7 +1038,7 @@ module WorkTrees
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step <subcommand>"
+        parser.banner = "Usage: wktrees step <subcommand>"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -1072,7 +1072,7 @@ module WorkTrees
       when "tether"       then step_tether(sub_args)
       when "statusline"   then step_statusline
       else
-        STDERR.puts "Usage: work_trees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether]"
+        STDERR.puts "Usage: wktrees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether]"
         exit 1
       end
     end
@@ -1082,7 +1082,7 @@ module WorkTrees
       all = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step commit [options]"
+        parser.banner = "Usage: wktrees step commit [options]"
         parser.on("-m MESSAGE", "--message=MESSAGE", "Commit message") { |msg| message = msg }
         parser.on("-a", "--all", "Stage all changes") { all = true }
         parser.on("-h", "--help", "Show this help") do
@@ -1166,7 +1166,7 @@ module WorkTrees
       target : String? = nil
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step rebase [target]"
+        parser.banner = "Usage: wktrees step rebase [target]"
         parser.unknown_args do |before, _after|
           target = before[0]? if before.size > 0
         end
@@ -1194,7 +1194,7 @@ module WorkTrees
       target : String? = nil
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step push [target]"
+        parser.banner = "Usage: wktrees step push [target]"
         parser.unknown_args do |before, _after|
           target = before[0]? if before.size > 0
         end
@@ -1229,7 +1229,7 @@ module WorkTrees
       # Parse flags; remaining args become the command
       remaining = args.dup
       OptionParser.parse(remaining) do |parser|
-        parser.banner = "Usage: work_trees step for-each [options] <command>"
+        parser.banner = "Usage: wktrees step for-each [options] <command>"
         parser.on("--concurrent", "Run command concurrently across worktrees") { concurrent = true }
         parser.on("-j N", "--jobs=N", "Maximum concurrent jobs (default: 8)") { |num| max_jobs = num.to_i }
         parser.on("--dry-run", "Show what would be executed without running") { dry_run = true }
@@ -1242,7 +1242,7 @@ module WorkTrees
       command = remaining.join(" ")
 
       if command.strip.empty?
-        STDERR.puts "Error: No command specified. Usage: work_trees step for-each <command>"
+        STDERR.puts "Error: No command specified. Usage: wktrees step for-each <command>"
         exit 1
       end
 
@@ -1350,9 +1350,9 @@ module WorkTrees
       template = args.join(" ")
 
       if template.strip.empty?
-        STDERR.puts "Usage: work_trees step eval <template>"
+        STDERR.puts "Usage: wktrees step eval <template>"
         STDERR.puts "  Evaluates a template expression with available variables."
-        STDERR.puts "  Example: work_trees step eval '{{ branch | sanitize }}'"
+        STDERR.puts "  Example: wktrees step eval '{{ branch | sanitize }}'"
         exit 1
       end
 
@@ -1580,7 +1580,7 @@ module WorkTrees
       no_ff = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees merge [options] [target]"
+        parser.banner = "Usage: wktrees merge [options] [target]"
         parser.on("--no-commit", "Skip committing before merge") { no_commit = true }
         parser.on("--no-squash", "Skip squashing before merge") { no_squash = true }
         parser.on("--no-rebase", "Skip rebasing onto target") { no_rebase = true }
@@ -1707,7 +1707,7 @@ module WorkTrees
 
     def self.shell(args : Array(String))
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees shell init [bash|zsh|fish]"
+        parser.banner = "Usage: wktrees shell init [bash|zsh|fish]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -1737,7 +1737,7 @@ module WorkTrees
       when "completions"
         shell_completions(args[1..])
       else
-        STDERR.puts "Usage: work_trees shell [init|install|uninstall|completions] [bash|zsh|fish]"
+        STDERR.puts "Usage: wktrees shell [init|install|uninstall|completions] [bash|zsh|fish]"
         exit 1
       end
     end
@@ -1747,7 +1747,7 @@ module WorkTrees
       full = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees config [show|create] [--project] [--full]"
+        parser.banner = "Usage: wktrees config [show|create] [--project] [--full]"
         parser.on("--project", "Create project config (.config/wt.toml)") { project = true }
         parser.on("--full", "Show resolved config with defaults and hooks") { full = true }
         parser.on("-h", "--help", "Show this help") do
@@ -1785,7 +1785,7 @@ module WorkTrees
         config = Config::UserConfig.new
         puts "# Default: worktree-path = #{config.worktree_path_template.inspect}"
         puts ""
-        puts "# Create one with: work_trees config create"
+        puts "# Create one with: wktrees config create"
       end
     end
 
@@ -1908,7 +1908,7 @@ module WorkTrees
         puts File.read(project_path)
       else
         puts "No project config at #{project_path}"
-        puts "Create with: work_trees config create --project"
+        puts "Create with: wktrees config create --project"
       end
     end
 
@@ -1916,7 +1916,7 @@ module WorkTrees
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees config state <key> [action]"
+        parser.banner = "Usage: wktrees config state <key> [action]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           puts ""
@@ -1936,9 +1936,9 @@ module WorkTrees
       when "previous-branch"
         state_previous_branch(args[1..])
       else
-        STDERR.puts "Usage: work_trees config state <key> [action]"
+        STDERR.puts "Usage: wktrees config state <key> [action]"
         STDERR.puts "Keys: vars, default-branch, previous-branch"
-        STDERR.puts "Run: work_trees config state --help"
+        STDERR.puts "Run: wktrees config state --help"
         exit 1
       end
     end
@@ -1954,7 +1954,7 @@ module WorkTrees
         key = args[1]?
         value = args[2]?
         unless key && value
-          STDERR.puts "Usage: work_trees config state vars set <key> <value>"
+          STDERR.puts "Usage: wktrees config state vars set <key> <value>"
           exit 1
         end
         repo.run_command(["config", "--local", "#{prefix}.#{key}", value])
@@ -1962,7 +1962,7 @@ module WorkTrees
       when "get"
         key = args[1]?
         unless key
-          STDERR.puts "Usage: work_trees config state vars get <key>"
+          STDERR.puts "Usage: wktrees config state vars get <key>"
           exit 1
         end
         result = Cmd.new("git")
@@ -2000,7 +2000,7 @@ module WorkTrees
           puts "No state variables to clear for #{branch}"
         end
       else
-        STDERR.puts "Usage: work_trees config state vars [set|get|list|clear]"
+        STDERR.puts "Usage: wktrees config state vars [set|get|list|clear]"
         exit 1
       end
     end
@@ -2016,7 +2016,7 @@ module WorkTrees
       when "set"
         value = args[1]?
         unless value
-          STDERR.puts "Usage: work_trees config state default-branch set <branch>"
+          STDERR.puts "Usage: wktrees config state default-branch set <branch>"
           exit 1
         end
         repo.run_command(["config", "--local", "worktrees.default-branch", value])
@@ -2031,7 +2031,7 @@ module WorkTrees
           puts "No default branch cache to clear"
         end
       else
-        STDERR.puts "Usage: work_trees config state default-branch [get|set|clear]"
+        STDERR.puts "Usage: wktrees config state default-branch [get|set|clear]"
         exit 1
       end
     end
@@ -2053,7 +2053,7 @@ module WorkTrees
       when "set"
         value = args[1]?
         unless value
-          STDERR.puts "Usage: work_trees config state previous-branch set <branch>"
+          STDERR.puts "Usage: wktrees config state previous-branch set <branch>"
           exit 1
         end
         repo.run_command(["config", "--local", "worktrees.history", value])
@@ -2068,7 +2068,7 @@ module WorkTrees
           puts "No previous branch to clear"
         end
       else
-        STDERR.puts "Usage: work_trees config state previous-branch [get|set|clear]"
+        STDERR.puts "Usage: wktrees config state previous-branch [get|set|clear]"
         exit 1
       end
     end
@@ -2077,12 +2077,12 @@ module WorkTrees
       rc_file = shell_rc_file
       return unless rc_file
 
-      if File.exists?(rc_file) && File.read(rc_file).includes?("work_trees shell init")
+      if File.exists?(rc_file) && File.read(rc_file).includes?("wktrees shell init")
         puts "Shell integration already installed in #{rc_file}"
         return
       end
 
-      line = "eval \"$(work_trees shell init #{shell_type_from_env})\""
+      line = "eval \"$(wktrees shell init #{shell_type_from_env})\""
       File.open(rc_file, mode: "a") do |file|
         file.puts ""
         file.puts "# WorkTrees shell integration"
@@ -2103,12 +2103,12 @@ module WorkTrees
       end
 
       content = File.read(rc_file)
-      unless content.includes?("work_trees shell init")
+      unless content.includes?("wktrees shell init")
         puts "WorkTrees shell integration not found in #{rc_file}"
         return
       end
 
-      cleaned = content.lines.reject { |line| line.includes?("work_trees shell init") || line.strip == "# WorkTrees shell integration" }
+      cleaned = content.lines.reject { |line| line.includes?("wktrees shell init") || line.strip == "# WorkTrees shell integration" }
       File.write(rc_file, cleaned.join)
       puts "✓ Removed WorkTrees shell integration from #{rc_file}"
       puts "  Restart your shell for changes to take effect."
@@ -2160,7 +2160,7 @@ module WorkTrees
 
     def self.bash_completions : String
       <<-BASH
-      _work_trees_complete() {
+      _wktrees_complete() {
           local cur prev words cword
           _init_completion || return
           local step_subs
@@ -2171,16 +2171,16 @@ module WorkTrees
               COMPREPLY=($(compgen -W "list switch remove step merge hook config shell help" -- "$cur"))
           fi
       }
-      complete -F _work_trees_complete work_trees
+      complete -F _wktrees_complete wktrees
       BASH
     end
 
     private def self.zsh_completions : String
       <<-ZSH
-      #compdef work_trees
+      #compdef wktrees
       local -a step_subs
       step_subs=(commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline)
-      _work_trees() {
+      _wktrees() {
           _arguments \\
               '1:command:(list switch remove step merge hook config shell help)' \\
               '*::arg:->args'
@@ -2194,16 +2194,16 @@ module WorkTrees
                   ;;
           esac
       }
-      _work_trees
+      _wktrees
       ZSH
     end
 
     private def self.fish_completions : String
       <<-FISH
-      complete -c work_trees -f
-      complete -c work_trees -a "list switch remove step merge hook config shell help"
+      complete -c wktrees -f
+      complete -c wktrees -a "list switch remove step merge hook config shell help"
       set -l step_subs commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline
-      complete -c work_trees -n "__fish_seen_subcommand_from step" -a "$step_subs"
+      complete -c wktrees -n "__fish_seen_subcommand_from step" -a "$step_subs"
       FISH
     end
 
@@ -2211,7 +2211,7 @@ module WorkTrees
       sub = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees hook [show|run] [filter]"
+        parser.banner = "Usage: wktrees hook [show|run] [filter]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -2302,7 +2302,7 @@ module WorkTrees
       hook_type = args[0]?
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees hook run <type>"
+        parser.banner = "Usage: wktrees hook run <type>"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           puts ""
@@ -2315,7 +2315,7 @@ module WorkTrees
 
       unless hook_type
         STDERR.puts "Error: No hook type specified."
-        STDERR.puts "Usage: work_trees hook run <type>"
+        STDERR.puts "Usage: wktrees hook run <type>"
         STDERR.puts ""
         STDERR.puts "Hook types: pre-start, post-start, pre-switch, post-switch,"
         STDERR.puts "  pre-commit, post-commit, pre-merge, post-merge,"
@@ -2341,7 +2341,7 @@ module WorkTrees
       source : String? = nil
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step copy-ignored [--source BRANCH]"
+        parser.banner = "Usage: wktrees step copy-ignored [--source BRANCH]"
         parser.on("--source=BRANCH", "Source branch (default: default branch)") { |src| source = src }
         parser.on("-h", "--help", "Show this help") do
           puts parser
@@ -2385,7 +2385,7 @@ module WorkTrees
       target : String? = nil
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: work_trees step promote [target-branch]"
+        parser.banner = "Usage: wktrees step promote [target-branch]"
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -2473,7 +2473,7 @@ module WorkTrees
       command = args.join(" ")
 
       if command.strip.empty?
-        STDERR.puts "Usage: work_trees step tether <command>"
+        STDERR.puts "Usage: wktrees step tether <command>"
         STDERR.puts "  Runs a command and kills it when the worktree is removed."
         exit 1
       end
@@ -2484,7 +2484,7 @@ module WorkTrees
 
       puts "◎ Tethered: #{command}"
       puts "  Worktree: #{branch} @ #{worktree_path}"
-      puts "  (kill with: work_trees remove #{branch})"
+      puts "  (kill with: wktrees remove #{branch})"
       puts ""
 
       # Run command in background, monitor worktree dir
