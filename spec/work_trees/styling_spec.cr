@@ -286,5 +286,55 @@ module WorkTrees
         Styling.truncate_visible("", 10).should eq("")
       end
     end
+
+    describe "StyledLine" do
+      it "starts with zero width" do
+        line = Styling::StyledLine.new
+        line.width.should eq(0)
+      end
+
+      it "tracks width of raw text segments" do
+        line = Styling::StyledLine.new
+        line.push_raw("hello")
+        line.width.should eq(5)
+      end
+
+      it "accumulates width across multiple segments" do
+        line = Styling::StyledLine.new
+        line.push_raw("hello")
+        line.push_raw(" ")
+        line.push_raw("world")
+        line.width.should eq(11)
+      end
+
+      it "pads to target width" do
+        line = Styling::StyledLine.new
+        line.push_raw("ab")
+        line.pad_to(6)
+        line.width.should eq(6)
+      end
+
+      it "does nothing when already at or beyond target" do
+        line = Styling::StyledLine.new
+        line.push_raw("hello")
+        line.pad_to(3)
+        line.width.should eq(5)
+      end
+
+      it "renders all segments joined" do
+        line = Styling::StyledLine.new
+        line.push_raw("hello")
+        line.push_raw(" ")
+        line.push_raw("world")
+        line.to_s.should eq("hello world")
+      end
+
+      it "renders padding as trailing spaces" do
+        line = Styling::StyledLine.new
+        line.push_raw("ab")
+        line.pad_to(5)
+        line.to_s.should eq("ab   ")
+      end
+    end
   end
 end

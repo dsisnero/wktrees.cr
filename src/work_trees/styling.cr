@@ -260,5 +260,44 @@ module WorkTrees
       result << tail
       result.to_s
     end
+
+    # A builder for styled text segments with visual width tracking.
+    #
+    # Collects plain text segments and tracks cumulative visual width
+    # for proper column alignment. Supports padding to a target width.
+    struct StyledLine
+      @segments : Array(String)
+      @total_width : Int32
+
+      def initialize
+        @segments = [] of String
+        @total_width = 0
+      end
+
+      # Add a plain text segment.
+      def push_raw(text : String) : Nil
+        @segments << text
+        @total_width += Styling.visual_width(text)
+      end
+
+      # Total visual width of all segments.
+      def width : Int32
+        @total_width
+      end
+
+      # Pad with spaces to reach `target` width.
+      # No-op if already at or beyond target.
+      def pad_to(target : Int32) : Nil
+        return if @total_width >= target
+        padding = target - @total_width
+        @segments << " " * padding
+        @total_width = target
+      end
+
+      # All segments concatenated.
+      def to_s(io : IO) : Nil
+        @segments.each { |segment| io << segment }
+      end
+    end
   end
 end
