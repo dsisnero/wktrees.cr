@@ -89,11 +89,11 @@ module WorkTrees
       # -- Forge detection ----------------------------------------------------
 
       def github? : Bool
-        @host == "github.com"
+        @host.includes?("github")
       end
 
       def gitlab? : Bool
-        @host == "gitlab.com"
+        @host.includes?("gitlab")
       end
 
       def gitea? : Bool
@@ -101,7 +101,7 @@ module WorkTrees
       end
 
       def azure? : Bool
-        @host == "dev.azure.com"
+        @host == "dev.azure.com" || @host.includes?("visualstudio.com")
       end
 
       # -- Identifiers --------------------------------------------------------

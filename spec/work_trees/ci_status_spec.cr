@@ -61,5 +61,56 @@ module WorkTrees
         CiStatus.fetch_ci_status("main", CiPlatform::Unknown).should be_nil
       end
     end
+
+    describe "platform_from_url" do
+      it "detects GitHub from https URL" do
+        CiPlatform.platform_from_url("https://github.com/owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
+      it "detects GitHub from git@ URL" do
+        CiPlatform.platform_from_url("git@github.com:owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
+      it "detects GitHub from ssh URL" do
+        CiPlatform.platform_from_url("ssh://git@github.com/owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
+      it "detects GitHub Enterprise" do
+        CiPlatform.platform_from_url("https://github.mycompany.com/owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
+      it "detects GitLab from https" do
+        CiPlatform.platform_from_url("https://gitlab.com/owner/repo.git").should eq(CiPlatform::GitLab)
+      end
+
+      it "detects GitLab self-hosted" do
+        CiPlatform.platform_from_url("https://gitlab.example.com/owner/repo.git").should eq(CiPlatform::GitLab)
+      end
+
+      it "detects Gitea" do
+        CiPlatform.platform_from_url("https://gitea.com/owner/repo.git").should eq(CiPlatform::Gitea)
+      end
+
+      it "detects Azure DevOps" do
+        CiPlatform.platform_from_url("https://dev.azure.com/myorg/myproject/_git/myrepo").should eq(CiPlatform::Azure)
+      end
+
+      it "returns nil for unknown forges" do
+        CiPlatform.platform_from_url("https://bitbucket.org/owner/repo.git").should be_nil
+        CiPlatform.platform_from_url("https://codeberg.org/owner/repo.git").should be_nil
+      end
+
+      it "parses platform strings from config" do
+        CiPlatform.parse("github").should eq(CiPlatform::GitHub)
+        CiPlatform.parse("gitlab").should eq(CiPlatform::GitLab)
+        CiPlatform.parse("gitea").should eq(CiPlatform::Gitea)
+        CiPlatform.parse("azure-devops").should eq(CiPlatform::Azure)
+      end
+
+      it "returns nil for invalid platform strings" do
+        CiPlatform.parse("invalid").should be_nil
+        CiPlatform.parse("GITHUB").should be_nil
+      end
+    end
   end
 end

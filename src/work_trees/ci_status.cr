@@ -25,6 +25,30 @@ module WorkTrees
       else                  Unknown
       end
     end
+
+    # Identify the CI platform from a remote URL string.
+    # Ported from vendor/worktrunk/src/git/ci_platform.rs
+    def self.platform_from_url(url : String) : CiPlatform?
+      u = Git::GitRemoteUrl.parse(url)
+      return nil unless u
+      case
+      when u.github? then GitHub
+      when u.gitlab? then GitLab
+      when u.gitea?  then Gitea
+      when u.azure?  then Azure
+      end
+    end
+
+    # Parse a platform string from config (github/gitlab/gitea/azure-devops).
+    def self.parse(platform : String) : CiPlatform?
+      case platform
+      when "github"       then GitHub
+      when "gitlab"       then GitLab
+      when "gitea"        then Gitea
+      when "azure-devops" then Azure
+      when "azuredevops"  then Azure
+      end
+    end
   end
 
   enum CiStatus
