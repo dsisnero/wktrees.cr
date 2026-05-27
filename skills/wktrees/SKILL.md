@@ -1,13 +1,13 @@
 ---
-name: work_trees
-description: Guidance for work_trees (the `work_trees` CLI) — git worktree management, hooks, and config. Load when editing .config/wt.toml or ~/.config/worktrees/config.toml; adding, modifying, or debugging hooks (post-merge, post-start, pre-commit, pre-merge, post-switch, etc.); configuring commit message generation or command aliases; or troubleshooting work_trees behavior. Also answers general work_trees questions.
+name: wktrees
+description: Guidance for wktrees (the `work_trees` CLI) — git worktree management, hooks, and config. Load when editing .config/wt.toml or ~/.config/worktrees/config.toml; adding, modifying, or debugging hooks; configuring commit message generation or command aliases; or troubleshooting wktrees behavior.
 license: MIT
 compatibility: Requires the `work_trees` CLI (Crystal port of worktrunk)
 ---
 
-# work_trees
+# wktrees
 
-Help users work with work_trees, a CLI tool for managing git worktrees.
+Help users work with wktrees, a CLI tool for managing git worktrees.
 Crystal port of [worktrunk](https://github.com/max-sixty/worktrunk) (Rust, v0.51.0).
 
 ## Available Documentation
