@@ -104,5 +104,21 @@ module WorkTrees
     def self.thread_id : UInt64
       Fiber.current.object_id.to_u64 & 0xFFFF_u64
     end
+
+    # Time a block and emit a span record on completion.
+    # Returns the block's result unchanged.
+    #
+    # Usage:
+    #   result = Trace.span("config_load") { load_config }
+    def self.span(name : String, &)
+      start_ts = now_us
+      start_time = Time.monotonic
+      result = yield
+      dur = Time.monotonic - start_time
+      dur_us = dur.total_microseconds.to_u64
+      record = format_span(name, start_ts, thread_id, dur_us)
+      emit(record)
+      result
+    end
   end
 end

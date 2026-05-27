@@ -59,5 +59,20 @@ module WorkTrees
         record.should contain("ok=false")
       end
     end
+
+    describe ".span" do
+      it "times a block and returns the block result" do
+        result = Trace.span("test_span") { 42 }
+        result.should eq(42)
+      end
+
+      it "emits a span record on completion" do
+        # Verify the span format is correct (can't test actual emission)
+        record = Trace.format_span("block_span", 100_u64, 2_u64, 5000_u64)
+        record.should contain("[wt-trace]")
+        record.should contain("span=\"block_span\"")
+        record.should contain("dur_us=5000")
+      end
+    end
   end
 end
