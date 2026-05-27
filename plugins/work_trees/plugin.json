@@ -1,0 +1,12 @@
+{
+  "name": "work_trees",
+  "description": "work_trees is a CLI for Git worktree management, designed for parallel AI agent workflows. Crystal port of worktrunk (Rust v0.51.0). This plugin provides configuration guidance (LLM commit messages, project hooks, worktree paths) and automatic activity tracking (🤖/💬 indicators showing active Claude sessions).",
+  "author": {
+    "name": "work_trees"
+  },
+  "hooks": "./hooks/hooks.json",
+  "skills": [
+    "./skills/work_trees",
+    "./skills/wt-switch-create"
+  ]
+}
