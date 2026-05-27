@@ -185,5 +185,37 @@ module WorkTrees
         item.branch
       end
     end
+
+    # -- Preview computation ---------------------------------------------------
+
+    # Build git command string for working tree preview.
+    def self.working_tree_preview_cmd : String
+      "git diff HEAD --color=always --stat -- \"$(git rev-parse --show-toplevel)\""
+    end
+
+    # Build git command string for log preview.
+    def self.log_preview_cmd(branch : String) : String
+      "git log --graph --color=always --decorate --oneline -20 #{branch}"
+    end
+
+    def self.branch_diff_preview_cmd(default_branch : String, branch : String) : String
+      "git diff --color=always --stat #{default_branch}...#{branch}"
+    end
+
+    def self.upstream_diff_preview_cmd(upstream : String, branch : String) : String
+      "git diff --color=always --stat #{upstream}...#{branch}"
+    end
+
+    # Title line for a preview mode.
+    def self.compute_preview_title(mode : PreviewMode, branch : String? = nil) : String
+      b = branch || "HEAD"
+      case mode
+      in .working_tree?  then "Working Tree Changes (#{b})"
+      in .log?           then "Recent Commits — #{b}"
+      in .branch_diff?   then "Diff vs Default — #{b}"
+      in .upstream_diff? then "Diff vs Upstream — #{b}"
+      in .summary?       then "Branch Summary — #{b}"
+      end
+    end
   end
 end

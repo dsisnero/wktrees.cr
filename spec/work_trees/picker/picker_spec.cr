@@ -109,4 +109,54 @@ module WorkTrees
       model.viewport.should_not be_nil
     end
   end
+
+  describe "Preview computation" do
+    describe "working_tree_preview_cmd" do
+      it "builds git diff HEAD command" do
+        cmd = Picker.working_tree_preview_cmd
+        cmd.should contain("diff")
+        cmd.should contain("HEAD")
+      end
+    end
+
+    describe "log_preview_cmd" do
+      it "builds git log command with graph" do
+        cmd = Picker.log_preview_cmd("feature/fix")
+        cmd.should contain("log")
+        cmd.should contain("graph")
+        cmd.should contain("feature/fix")
+      end
+    end
+
+    describe "branch_diff_preview_cmd" do
+      it "builds git diff against default branch" do
+        cmd = Picker.branch_diff_preview_cmd("main", "feature/fix")
+        cmd.should contain("diff")
+        cmd.should contain("main...feature/fix")
+      end
+    end
+
+    describe "upstream_diff_preview_cmd" do
+      it "builds git diff against upstream tracking" do
+        cmd = Picker.upstream_diff_preview_cmd("origin/main", "feature/fix")
+        cmd.should contain("diff")
+        cmd.should contain("origin/main...feature/fix")
+      end
+    end
+
+    describe "compute_preview_title" do
+      it "returns mode name for WorkingTree" do
+        Picker.compute_preview_title(Picker::PreviewMode::WorkingTree).should contain("Working Tree")
+      end
+
+      it "returns mode name for Log" do
+        Picker.compute_preview_title(Picker::PreviewMode::Log, branch: "feature").should contain("Recent Commits")
+      end
+
+      it "includes branch name" do
+        title = Picker.compute_preview_title(Picker::PreviewMode::BranchDiff, branch: "feature/fix")
+        title.should contain("feature/fix")
+      end
+    end
+  end
 end
