@@ -83,6 +83,7 @@ module WorkTrees
       getter items : Array(PickerItem)
       getter? quitting : Bool
       property last_selected_idx : Int32?
+      property selected_branch : String?
 
       def initialize(
         @items : Array(PickerItem),
@@ -92,6 +93,7 @@ module WorkTrees
         @preview_mode = PreviewMode::WorkingTree
         @quitting = false
         @last_selected_idx = nil
+        @selected_branch = nil
 
         # Build list component
         delegate = Bubbles::List.new_default_delegate
@@ -126,6 +128,13 @@ module WorkTrees
         when Tea::KeyPressMsg
           case msg.to_s
           when "q", "ctrl+c"
+            @quitting = true
+            {self, Tea.quit}
+          when "enter"
+            # Select the highlighted item and quit
+            if item = @items[@list.index]?
+              @selected_branch = item.branch
+            end
             @quitting = true
             {self, Tea.quit}
           when "1" then switch_preview_mode(PreviewMode::WorkingTree)
@@ -202,10 +211,18 @@ module WorkTrees
       m = result_model
       return nil unless m.is_a?(Model)
 
-      selected_idx = m.list.index
-      if selected_idx < m.items.size
-        item = m.items[selected_idx]
-        item.branch
+      # Return the explicitly selected branch (if user pressed Enter)
+      # or fall back to the current list index
+      if branch = m.selected_branch
+        branch
+      elsif m.quitting?
+        nil
+      else
+        selected_idx = m.list.index
+        if selected_idx < m.items.size
+          item = m.items[selected_idx]
+          item.branch
+        end
       end
     end
 

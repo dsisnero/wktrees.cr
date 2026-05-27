@@ -159,4 +159,23 @@ module WorkTrees
       end
     end
   end
+
+  describe "selection" do
+    it "selected_branch defaults to nil" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.selected_branch.should be_nil
+    end
+
+    it "can set selected_branch" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.selected_branch = "feature/test"
+      model.selected_branch.should eq("feature/test")
+    end
+  end
 end
