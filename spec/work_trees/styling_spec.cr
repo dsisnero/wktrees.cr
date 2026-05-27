@@ -259,5 +259,32 @@ module WorkTrees
         result.should eq("\e[39m\e[1m")
       end
     end
+
+    describe "truncate_visible" do
+      it "returns the string unchanged when under max_width" do
+        Styling.truncate_visible("hello", 10).should eq("hello")
+      end
+
+      it "truncates and appends ellipsis when over max_width" do
+        result = Styling.truncate_visible("hello world", 8)
+        result.size.should be <= 8
+        result.should contain("…")
+      end
+
+      it "truncates by visual width not byte count" do
+        result = Styling.truncate_visible("hello world", 5)
+        result.should contain("…")
+      end
+
+      it "returns just the tail when max_width is smaller than tail" do
+        result = Styling.truncate_visible("hello", 1)
+        result.should_not be_empty
+        result.should contain("…")
+      end
+
+      it "handles empty string" do
+        Styling.truncate_visible("", 10).should eq("")
+      end
+    end
   end
 end

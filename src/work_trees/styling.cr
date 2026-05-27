@@ -237,5 +237,28 @@ module WorkTrees
     def self.fix_dim_after_color_reset(str : String) : String
       str.gsub("\e[39m\e[2m", "\e[0m\e[2m")
     end
+
+    # Truncate a string to `max_width` visual columns, appending "…"
+    # when truncation occurs. Uses lipgloss for proper CJK/emoji width.
+    def self.truncate_visible(str : String, max_width : Int32, tail : String = "…") : String
+      return "" if str.empty?
+      return str if visual_width(str) <= max_width
+
+      tail_width = visual_width(tail)
+      return tail if max_width <= tail_width
+
+      target = max_width - tail_width
+      # Walk characters until we hit the visual width target
+      width = 0
+      result = String::Builder.new
+      str.each_char do |char|
+        char_width = visual_width(char.to_s)
+        break if width + char_width > target
+        result << char
+        width += char_width
+      end
+      result << tail
+      result.to_s
+    end
   end
 end
