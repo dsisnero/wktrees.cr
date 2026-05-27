@@ -68,6 +68,11 @@ module WorkTrees
       end
     end
 
+    # Message sent when a preview computation completes.
+    record PreviewLoadedMsg, content : String do
+      include Tea::Msg
+    end
+
     # Elm model for the interactive picker TUI.
     class Model
       include Tea::Model
@@ -77,6 +82,7 @@ module WorkTrees
       property preview_mode : PreviewMode
       getter items : Array(PickerItem)
       getter? quitting : Bool
+      property last_selected_idx : Int32?
 
       def initialize(
         @items : Array(PickerItem),
@@ -85,6 +91,7 @@ module WorkTrees
       )
         @preview_mode = PreviewMode::WorkingTree
         @quitting = false
+        @last_selected_idx = nil
 
         # Build list component
         delegate = Bubbles::List.new_default_delegate
@@ -113,6 +120,9 @@ module WorkTrees
 
       def update(msg : Tea::Msg) : {Tea::Model, Tea::Cmd?}
         case msg
+        when PreviewLoadedMsg
+          @viewport.set_content(msg.content)
+          {self, nil}
         when Tea::KeyPressMsg
           case msg.to_s
           when "q", "ctrl+c"
@@ -124,13 +134,11 @@ module WorkTrees
           when "4" then switch_preview_mode(PreviewMode::UpstreamDiff)
           when "5" then switch_preview_mode(PreviewMode::Summary)
           else
-            # Delegate to list for cursor/filter navigation
             list_model, cmd = @list.update(msg)
             @list = list_model
             {self, cmd}
           end
         else
-          # Delegate unknown messages to list
           list_model, cmd = @list.update(msg)
           @list = list_model
           {self, cmd}
@@ -149,7 +157,22 @@ module WorkTrees
 
       private def switch_preview_mode(mode : PreviewMode) : {Tea::Model, Tea::Cmd?}
         @preview_mode = mode
-        {self, nil}
+        # Reload preview for the selected item in the new mode
+        if item = @items[@list.index]?
+          {self, load_preview(item)}
+        else
+          {self, nil}
+        end
+      end
+
+      # Build a command that runs the preview computation in a background
+      # fiber and sends a PreviewLoadedMsg when complete.
+      private def load_preview(item : PickerItem) : Proc(Tea::Msg?)
+        mode = @preview_mode
+        -> : Tea::Msg? {
+          content = Picker.run_preview(item, mode)
+          PreviewLoadedMsg.new(content)
+        }
       end
     end
 
@@ -215,6 +238,34 @@ module WorkTrees
       in .branch_diff?   then "Diff vs Default — #{b}"
       in .upstream_diff? then "Diff vs Upstream — #{b}"
       in .summary?       then "Branch Summary — #{b}"
+      end
+    end
+
+    # Run the appropriate git command for the preview mode and return
+    # the captured output (or a fallback message on failure).
+    def self.run_preview(item : PickerItem, mode : PreviewMode) : String
+      title = compute_preview_title(mode, branch: item.branch)
+      output = begin
+        case mode
+        in .working_tree?
+          Cmd.new("git").args(["diff", "HEAD", "--stat", "--color=always"]).run.stdout
+        in .log?
+          Cmd.new("git").args(["log", "--graph", "--color=always", "--decorate", "--oneline", "-20", item.branch]).run.stdout
+        in .branch_diff?
+          Cmd.new("git").args(["diff", "--color=always", "--stat", "main...#{item.branch}"]).run.stdout
+        in .upstream_diff?
+          Cmd.new("git").args(["diff", "--color=always", "--stat", "@{u}...#{item.branch}"]).run.stdout
+        in .summary?
+          "Run 'work_trees step summary' to generate an LLM summary."
+        end
+      rescue
+        "Preview unavailable"
+      end
+
+      if output.strip.empty?
+        "#{title}\n\n(no changes)"
+      else
+        "#{title}\n\n#{output}"
       end
     end
   end
