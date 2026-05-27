@@ -109,6 +109,13 @@ module WorkTrees
       def project_identifier : String
         "#{@host}/#{@owner}/#{@repo}"
       end
+
+      # Shorthand to extract (owner, repo) from a URL without creating
+      # the full GitRemoteUrl struct.
+      def self.parse_owner_repo(url : String) : {String, String}?
+        u = parse(url)
+        u ? {u.owner, u.repo} : nil
+      end
     end
   end
 end

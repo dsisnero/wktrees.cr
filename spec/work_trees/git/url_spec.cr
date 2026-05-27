@@ -121,5 +121,41 @@ module WorkTrees
         u.repo.should eq("repo")
       end
     end
+
+    describe "parse_owner_repo" do
+      it "extracts owner and repo from HTTPS URL" do
+        result = Git::GitRemoteUrl.parse_owner_repo("https://github.com/owner/repo.git")
+        result.should eq({"owner", "repo"})
+      end
+
+      it "strips trailing .git" do
+        result = Git::GitRemoteUrl.parse_owner_repo("https://github.com/owner/repo")
+        result.should eq({"owner", "repo"})
+      end
+
+      it "handles trailing whitespace" do
+        result = Git::GitRemoteUrl.parse_owner_repo("  https://github.com/owner/repo.git\n")
+        result.should eq({"owner", "repo"})
+      end
+
+      it "returns nil for malformed URL" do
+        Git::GitRemoteUrl.parse_owner_repo("not-a-url").should be_nil
+      end
+    end
+
+    describe "self-hosted GitLab" do
+      it "handles nested groups on custom domain" do
+        url = Git::GitRemoteUrl.parse("https://gitlab.mycompany.com/team/frontend/repo.git").not_nil!
+        url.host.should eq("gitlab.mycompany.com")
+        url.owner.should eq("team/frontend")
+        url.repo.should eq("repo")
+      end
+
+      it "handles git@ self-hosted with deep nesting" do
+        url = Git::GitRemoteUrl.parse("git@gitlab.internal:org/dept/project/repo.git").not_nil!
+        url.owner.should eq("org/dept/project")
+        url.repo.should eq("repo")
+      end
+    end
   end
 end
