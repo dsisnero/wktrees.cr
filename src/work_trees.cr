@@ -40,6 +40,7 @@ require "./work_trees/list/columns"
 require "./work_trees/list/item"
 require "./work_trees/list/render"
 require "./work_trees/list/json_output"
+require "./work_trees/picker"
 require "./work_trees/cli"
 
 module WorkTrees
