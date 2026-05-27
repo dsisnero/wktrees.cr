@@ -772,27 +772,8 @@ module WorkTrees
       worktrees = repo.list_worktrees
       return nil if worktrees.empty?
 
-      # Build fzf input: branch | worktree name | path
-      lines = worktrees.compact_map do |worktree|
-        branch = worktree.branch
-        next unless branch
-        marker = branch == current_branch ? "@" : " "
-        "#{marker} #{branch.ljust(30)} #{worktree.dir_name.ljust(20)} #{worktree.path}"
-      end
-
-      input = lines.join('\n')
-      result = Cmd.new("fzf")
-        .args(["--height", "40%", "--reverse", "--inline-info"])
-        .stdin_data(input)
-        .run
-
-      return nil if result.stdout.strip.empty? || !result.success?
-
-      # Parse selected line: extract branch name
-      selected = result.stdout.strip
-      if m = selected.match(/^\s*[@ ]\s*(\S+)/)
-        m[1]
-      end
+      # Use the integrated bubbletea TUI picker
+      Picker.handle_picker(worktrees)
     end
 
     private def self.emit_exec_directive(cmd : String) : Nil

@@ -152,5 +152,38 @@ module WorkTrees
         {self, nil}
       end
     end
+
+    # Launch the interactive picker TUI and return the selected branch name,
+    # or nil if the user cancelled (q/ctrl-c).
+    #
+    # Uses bubbletea with alt-screen for the full TUI experience.
+    def self.handle_picker(worktrees : Array(Git::WorktreeInfo)) : String?
+      return nil if worktrees.empty?
+
+      items = build_items(worktrees)
+      model = Model.new(items, terminal_width: 80, terminal_height: 24)
+
+      program = Tea.new_program(
+        model,
+        Tea.with_alt_screen,
+        Tea.with_mouse_cell_motion,
+      )
+
+      begin
+        result_model, err = program.run
+      rescue ex
+        return nil
+      end
+      return nil if err
+
+      m = result_model
+      return nil unless m.is_a?(Model)
+
+      selected_idx = m.list.index
+      if selected_idx < m.items.size
+        item = m.items[selected_idx]
+        item.branch
+      end
+    end
   end
 end
