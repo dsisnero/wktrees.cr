@@ -8,23 +8,29 @@ plugin manifests, custom subcommands) that need a compiled-language equivalent.
 
 ## Scenarios Evaluated
 
-### Scenario 1: Custom Subcommand Binaries (PATH-based)
+### Scenario 1: Custom Subcommand Binaries (PATH + project-local)
 
-**How it works:** Any executable named `wktrees-<name>` on `$PATH` is
+**How it works:** Any executable named `wktrees-<name>` found in
+`.work_trees/bin/` (project-local, CWD-relative) or on `$PATH` is
 automatically discovered and invoked as `wktrees <name>`. Git itself uses this
 pattern (`git-lfs`, `git-flow`).
 
+**Search order:**
+1. `.work_trees/bin/wktrees-<name>` — project-local (takes precedence)
+2. `$PATH/wktrees-<name>` — system/user-wide
+
 **Crystal implementation:**
 ```crystal
-# discovery: scan PATH for wktrees-* executables
-# invocation: spawn child process, pass remaining args
-def dispatch_custom_subcommand(name, args)
-  binary = "wktrees-#{name}"
-  if which = find_on_path(binary)
-    Process.run(which, args, output: STDOUT, error: STDERR)
-    true
+def find_plugin(name : String) : String?
+  # 1. Project-local
+  local = File.join(Dir.current, ".work_trees", "bin", "wktrees-#{name}")
+  return local if File.executable?(local)
+  # 2. PATH
+  ENV["PATH"].split(':').each do |dir|
+    full = File.join(dir, "wktrees-#{name}")
+    return full if File.executable?(full)
   end
-  false
+  nil
 end
 ```
 
