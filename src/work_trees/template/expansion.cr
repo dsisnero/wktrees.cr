@@ -19,6 +19,12 @@ module WorkTrees
     #
     # Supports `{{ vars.key }}` for per-branch state variables stored in git config.
     def self.expand(template : String, vars : Hash(String, String)) : String
+      Trace.span("template.expand") do
+        do_expand(template, vars)
+      end
+    end
+
+    private def self.do_expand(template : String, vars : Hash(String, String)) : String
       # Inject per-branch state vars if template references vars.*
       expanded_vars = vars.dup
       if template.includes?("vars.") && expanded_vars["branch"]?

@@ -188,8 +188,10 @@ module WorkTrees
 
     # Load user config from the default location, with env overrides.
     def self.load_default : UserConfig
-      config = load_user(default_config_path)
-      apply_env_overrides(config)
+      Trace.span("config.load_default") do
+        config = load_user(default_config_path)
+        apply_env_overrides(config)
+      end
     end
 
     # Project config path relative to repo root.
