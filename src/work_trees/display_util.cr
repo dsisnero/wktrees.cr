@@ -22,8 +22,12 @@ module WorkTrees
 
     # Format a Unix timestamp as abbreviated relative time.
     def self.format_relative_time_short(timestamp : Int64) : String
-      current = Time.utc.to_unix
-      seconds_ago = current - timestamp
+      format_relative_time_impl(timestamp, Time.utc.to_unix)
+    end
+
+    # Internal: format with explicit `now` timestamp for testing.
+    def self.format_relative_time_impl(timestamp : Int64, now : Int64) : String
+      seconds_ago = now - timestamp
 
       return "future" if seconds_ago < 0
       return "now" if seconds_ago < MINUTE

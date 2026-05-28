@@ -4,33 +4,70 @@ module WorkTrees
   describe DisplayUtil do
     describe "format_relative_time_short" do
       it "returns 'now' for recent timestamps" do
-        now = Time.utc.to_unix
-        result = DisplayUtil.format_relative_time_short(now)
-        result.should eq("now")
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 30, now).should eq("now")
+        DisplayUtil.format_relative_time_impl(now - 59, now).should eq("now")
       end
 
-      it "returns '5m' for 5 minutes ago" do
-        now = Time.utc.to_unix
-        result = DisplayUtil.format_relative_time_short(now - 300)
-        result.should contain("m")
+      it "returns '1m' for 1 minute ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 60, now).should eq("1m")
+      end
+
+      it "returns '2m' for 2 minutes ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 120, now).should eq("2m")
+      end
+
+      it "returns '59m' for 59 minutes ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 3599, now).should eq("59m")
+      end
+
+      it "returns '1h' for 1 hour ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 3600, now).should eq("1h")
       end
 
       it "returns '2h' for 2 hours ago" do
-        now = Time.utc.to_unix
-        result = DisplayUtil.format_relative_time_short(now - 7200)
-        result.should contain("h")
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 7200, now).should eq("2h")
       end
 
-      it "returns '3d' for 3 days ago" do
-        now = Time.utc.to_unix
-        result = DisplayUtil.format_relative_time_short(now - 259200)
-        result.should contain("d")
+      it "returns '1d' for 1 day ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 86400, now).should eq("1d")
       end
 
-      it "handles future timestamps" do
+      it "returns '2d' for 2 days ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 172800, now).should eq("2d")
+      end
+
+      it "returns '1w' for 1 week ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 604800, now).should eq("1w")
+      end
+
+      it "returns '1mo' for 1 month ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 2592000, now).should eq("1mo")
+      end
+
+      it "returns '1y' for 1 year ago" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 31536000, now).should eq("1y")
+      end
+
+      it "returns 'future' for future timestamps" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now + 1000, now).should eq("future")
+      end
+
+      it "returns 'now' for timestamps < 60s" do
         now = Time.utc.to_unix
-        result = DisplayUtil.format_relative_time_short(now + 1000)
-        result.should_not be_empty
+        result = DisplayUtil.format_relative_time_short(now)
+        result.should eq("now")
       end
     end
 
