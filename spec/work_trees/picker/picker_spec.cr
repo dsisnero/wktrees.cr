@@ -72,6 +72,16 @@ module WorkTrees
         items[0].branch.should eq("main")
         items[1].branch.should eq("feature/fix")
       end
+
+      it "marks current branch with is_current" do
+        worktrees = [
+          Git::WorktreeInfo.new("/repo", "abc", "main"),
+          Git::WorktreeInfo.new("/wt/feat", "def", "feature/fix"),
+        ]
+        items = Picker.build_items(worktrees, current_branch: "main")
+        items[0].is_current?.should be_true
+        items[1].is_current?.should be_false
+      end
     end
   end
 

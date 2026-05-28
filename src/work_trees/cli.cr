@@ -748,7 +748,7 @@ module WorkTrees
     private def self.resolve_switch_target(repo, branch, current_branch, create)
       # Interactive picker: if no branch and no --create, use fzf
       if !branch && !create
-        if selected = interactive_picker(repo)
+        if selected = interactive_picker(repo, current_branch)
           if selected != current_branch && !repo.worktree_for_branch(selected)
             return {selected, true}
           end
@@ -767,10 +767,10 @@ module WorkTrees
       {resolved, create}
     end
 
-    private def self.interactive_picker(repo) : String?
+    private def self.interactive_picker(repo, current_branch) : String?
       worktrees = repo.list_worktrees
       return nil if worktrees.empty?
-      Picker.handle_picker(worktrees)
+      Picker.handle_picker(worktrees, current_branch)
     end
 
     private def self.emit_exec_directive(cmd : String) : Nil

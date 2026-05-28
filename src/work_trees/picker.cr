@@ -58,12 +58,15 @@ module WorkTrees
     end
 
     # Convert WorktreeInfo objects to PickerItems.
-    def self.build_items(worktrees : Array(Git::WorktreeInfo)) : Array(PickerItem)
+    # Marks the item matching `current_branch` with is_current=true.
+    def self.build_items(worktrees : Array(Git::WorktreeInfo), current_branch : String? = nil) : Array(PickerItem)
       worktrees.map do |worktree|
+        branch = worktree.branch || "(detached)"
         PickerItem.new(
-          branch: worktree.branch || "(detached)",
+          branch: branch,
           worktree_path: worktree.path,
           head_sha: worktree.head,
+          is_current: branch == current_branch,
         )
       end
     end
@@ -190,19 +193,18 @@ module WorkTrees
     #
     # When STDOUT is a TTY, uses bubbletea with alt-screen for the full TUI.
     # Falls back to fzf when STDOUT is piped (non-TTY environments).
-    def self.handle_picker(worktrees : Array(Git::WorktreeInfo)) : String?
+    def self.handle_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String? = nil) : String?
       return nil if worktrees.empty?
 
       if STDOUT.tty?
-        run_tui_picker(worktrees)
+        run_tui_picker(worktrees, current_branch)
       else
         run_fzf_picker(worktrees)
       end
     end
 
-    # Run the bubbletea TUI picker (requires TTY).
-    private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo)) : String?
-      items = build_items(worktrees)
+    private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String?) : String?
+      items = build_items(worktrees, current_branch)
       model = Model.new(items, terminal_width: 80, terminal_height: 24)
 
       program = Tea.new_program(
