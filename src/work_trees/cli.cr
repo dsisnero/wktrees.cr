@@ -73,9 +73,41 @@ module WorkTrees
         exit 0
       end
 
+      # Check for custom subcommand wktrees-<command> on PATH
+      if run_custom_subcommand(command, args)
+        exit 0
+      end
+
       STDERR.puts "Unknown command: #{command}"
       STDERR.puts "Run 'wktrees help' for usage."
       exit 1
+    end
+
+    # Try to find and run a wktrees-<name> binary on PATH.
+    private def self.run_custom_subcommand(name, args) : Bool
+      binary = find_on_path("wktrees-#{name}")
+      return false unless binary
+
+      Process.run(
+        binary,
+        args,
+        input: STDIN,
+        output: STDOUT,
+        error: STDERR,
+      )
+      true
+    rescue
+      false
+    end
+
+    # Search PATH for an executable.
+    def self.find_on_path(name : String) : String?
+      path_dirs = ENV["PATH"]?.try(&.split(':')) || [] of String
+      path_dirs.each do |dir|
+        full_path = File.join(dir, name)
+        return full_path if File.executable?(full_path)
+      end
+      nil
     end
 
     private def self.run_alias(name, args) : Bool

@@ -115,7 +115,7 @@
 - [x] config show --full (resolved config with defaults)
 - [x] config update (deprecation migration)
 - [x] config approvals (persistence, legacy fallback, batch, atomic saves)
-- [ ] config plugins → deferred
+- [x] config plugins → Tier 2 custom subcommand dispatch + plans/plugins.md
 
 ---
 
