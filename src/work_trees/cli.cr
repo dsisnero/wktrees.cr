@@ -748,8 +748,7 @@ module WorkTrees
     private def self.resolve_switch_target(repo, branch, current_branch, create)
       # Interactive picker: if no branch and no --create, use fzf
       if !branch && !create
-        if selected = interactive_picker(repo, current_branch)
-          # Auto-create if worktree doesn't exist
+        if selected = interactive_picker(repo)
           if selected != current_branch && !repo.worktree_for_branch(selected)
             return {selected, true}
           end
@@ -768,11 +767,9 @@ module WorkTrees
       {resolved, create}
     end
 
-    private def self.interactive_picker(repo, current_branch) : String?
+    private def self.interactive_picker(repo) : String?
       worktrees = repo.list_worktrees
       return nil if worktrees.empty?
-
-      # Use the integrated bubbletea TUI picker
       Picker.handle_picker(worktrees)
     end
 
