@@ -79,20 +79,44 @@ module WorkTrees
         CiPlatform.platform_from_url("https://github.mycompany.com/owner/repo.git").should eq(CiPlatform::GitHub)
       end
 
+      it "detects GitHub from http:// URL" do
+        CiPlatform.platform_from_url("http://github.com/owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
+      it "detects GitHub from git:// URL" do
+        CiPlatform.platform_from_url("git://github.com/owner/repo.git").should eq(CiPlatform::GitHub)
+      end
+
       it "detects GitLab from https" do
         CiPlatform.platform_from_url("https://gitlab.com/owner/repo.git").should eq(CiPlatform::GitLab)
+      end
+
+      it "detects GitLab from git@ URL" do
+        CiPlatform.platform_from_url("git@gitlab.com:owner/repo.git").should eq(CiPlatform::GitLab)
       end
 
       it "detects GitLab self-hosted" do
         CiPlatform.platform_from_url("https://gitlab.example.com/owner/repo.git").should eq(CiPlatform::GitLab)
       end
 
-      it "detects Gitea" do
+      it "detects Gitea from https" do
         CiPlatform.platform_from_url("https://gitea.com/owner/repo.git").should eq(CiPlatform::Gitea)
       end
 
-      it "detects Azure DevOps" do
+      it "detects Gitea from git@ URL" do
+        CiPlatform.platform_from_url("git@gitea.example.com:owner/repo.git").should eq(CiPlatform::Gitea)
+      end
+
+      it "detects Azure DevOps from https" do
         CiPlatform.platform_from_url("https://dev.azure.com/myorg/myproject/_git/myrepo").should eq(CiPlatform::Azure)
+      end
+
+      it "detects Azure DevOps from ssh URL" do
+        CiPlatform.platform_from_url("git@ssh.dev.azure.com:v3/myorg/myproject/myrepo").should eq(CiPlatform::Azure)
+      end
+
+      it "detects Azure DevOps from visualstudio.com" do
+        CiPlatform.platform_from_url("https://myorg.visualstudio.com/myproject/_git/myrepo").should eq(CiPlatform::Azure)
       end
 
       it "returns nil for unknown forges" do

@@ -141,6 +141,16 @@ module WorkTrees
       it "returns nil for malformed URL" do
         Git::GitRemoteUrl.parse_owner_repo("not-a-url").should be_nil
       end
+
+      it "parses git@ without .git suffix" do
+        result = Git::GitRemoteUrl.parse_owner_repo("git@github.com:owner/repo")
+        result.should eq({"owner", "repo"})
+      end
+
+      it "parses ssh:// URL" do
+        result = Git::GitRemoteUrl.parse_owner_repo("ssh://git@github.com/owner/repo.git")
+        result.should eq({"owner", "repo"})
+      end
     end
 
     describe "self-hosted GitLab" do

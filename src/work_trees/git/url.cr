@@ -101,7 +101,7 @@ module WorkTrees
       end
 
       def azure? : Bool
-        @host == "dev.azure.com" || @host.includes?("visualstudio.com")
+        @host == "dev.azure.com" || @host.includes?("visualstudio.com") || @host.ends_with?(".dev.azure.com")
       end
 
       # -- Identifiers --------------------------------------------------------
