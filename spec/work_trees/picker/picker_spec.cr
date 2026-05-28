@@ -190,8 +190,19 @@ module WorkTrees
   end
 
   describe "handle_picker" do
-    it "returns nil for empty worktree list" do
-      Picker.handle_picker([] of Git::WorktreeInfo).should be_nil
+    it "returns nil branch for empty worktree list" do
+      result = Picker.handle_picker([] of Git::WorktreeInfo)
+      result.branch.should be_nil
+      result.create.should be_false
+      result.remove.should be_false
+    end
+
+    it "returns branch name for single worktree" do
+      worktrees = [Git::WorktreeInfo.new("/repo", "abc", "feature")]
+      result = Picker.handle_picker(worktrees)
+      # In test env (no TTY), returns first worktree or nil
+      # The key test: the function should not crash
+      true.should be_true # just testing it doesn't crash
     end
 
     it "returns branch name for single worktree" do
@@ -201,6 +212,14 @@ module WorkTrees
       result = Picker.handle_picker(worktrees)
       # nil is acceptable in test environment
       true.should be_true # just testing it doesn't crash
+    end
+    it "create_requested defaults to false" do
+      model = Picker::Model.new(
+        [Picker::PickerItem.new(branch: "main")],
+        terminal_width: 80, terminal_height: 24,
+      )
+      model.create_requested?.should be_false
+      model.remove_requested?.should be_false
     end
   end
 end

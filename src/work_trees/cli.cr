@@ -770,7 +770,8 @@ module WorkTrees
     private def self.interactive_picker(repo, current_branch) : String?
       worktrees = repo.list_worktrees
       return nil if worktrees.empty?
-      Picker.handle_picker(worktrees, current_branch)
+      result = Picker.handle_picker(worktrees, current_branch)
+      result.branch
     end
 
     private def self.emit_exec_directive(cmd : String) : Nil

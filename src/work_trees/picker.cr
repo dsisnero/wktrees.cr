@@ -87,6 +87,8 @@ module WorkTrees
       getter? quitting : Bool
       property last_selected_idx : Int32?
       property selected_branch : String?
+      property? create_requested : Bool
+      property? remove_requested : Bool
 
       def initialize(
         @items : Array(PickerItem),
@@ -97,6 +99,8 @@ module WorkTrees
         @quitting = false
         @last_selected_idx = nil
         @selected_branch = nil
+        @create_requested = false
+        @remove_requested = false
 
         # Build list component
         delegate = Bubbles::List.new_default_delegate
@@ -113,6 +117,34 @@ module WorkTrees
           Bubbles::Viewport.with_height(terminal_height - 3),
         )
         @viewport.soft_wrap = true
+      end
+
+      # Handle alt-modified key presses (alt-c create, alt-r remove).
+      private def handle_alt_key(msg : Tea::KeyPressMsg) : {Tea::Model, Tea::Cmd?}
+        if (msg.mod & Tea::ModAlt) != 0
+          case msg.string
+          when "c"
+            @selected_branch = @items[@list.index]?.try(&.branch) || "new-branch"
+            @create_requested = true
+            {self, Tea.quit}
+          when "r"
+            if item = @items[@list.index]?
+              @selected_branch = item.branch
+              @remove_requested = true
+              {self, Tea.quit}
+            else
+              {self, nil}
+            end
+          else
+            list_model, cmd = @list.update(msg)
+            @list = list_model
+            {self, cmd}
+          end
+        else
+          list_model, cmd = @list.update(msg)
+          @list = list_model
+          {self, cmd}
+        end
       end
 
       def item_count : Int32
@@ -134,7 +166,6 @@ module WorkTrees
             @quitting = true
             {self, Tea.quit}
           when "enter"
-            # Select the highlighted item and quit
             if item = @items[@list.index]?
               @selected_branch = item.branch
             end
@@ -146,9 +177,8 @@ module WorkTrees
           when "4" then switch_preview_mode(PreviewMode::UpstreamDiff)
           when "5" then switch_preview_mode(PreviewMode::Summary)
           else
-            list_model, cmd = @list.update(msg)
-            @list = list_model
-            {self, cmd}
+            # Check for alt-modified keys
+            handle_alt_key(msg)
           end
         else
           list_model, cmd = @list.update(msg)
@@ -188,22 +218,26 @@ module WorkTrees
       end
     end
 
+    # Result of the picker selection.
+    record PickerResult, branch : String?, create : Bool, remove : Bool
+
     # Launch the interactive picker TUI and return the selected branch name,
     # or nil if the user cancelled (q/ctrl-c).
     #
     # When STDOUT is a TTY, uses bubbletea with alt-screen for the full TUI.
-    # Falls back to fzf when STDOUT is piped (non-TTY environments).
-    def self.handle_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String? = nil) : String?
-      return nil if worktrees.empty?
+    # Falls back to first worktree when STDOUT is piped.
+    def self.handle_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String? = nil) : PickerResult
+      return PickerResult.new(nil, create: false, remove: false) if worktrees.empty?
 
       if STDOUT.tty?
         run_tui_picker(worktrees, current_branch)
       else
-        run_fzf_picker(worktrees)
+        branch = run_fzf_picker(worktrees)
+        PickerResult.new(branch, create: false, remove: false)
       end
     end
 
-    private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String?) : String?
+    private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String?) : PickerResult
       items = build_items(worktrees, current_branch)
       model = Model.new(items, terminal_width: 80, terminal_height: 24)
 
@@ -216,23 +250,23 @@ module WorkTrees
       begin
         result_model, err = program.run
       rescue ex
-        return nil
+        return PickerResult.new(nil, create: false, remove: false)
       end
-      return nil if err
+      return PickerResult.new(nil, create: false, remove: false) if err
 
       m = result_model
-      return nil unless m.is_a?(Model)
+      return PickerResult.new(nil, create: false, remove: false) unless m.is_a?(Model)
 
-      if branch = m.selected_branch
-        branch
+      if m.remove_requested?
+        PickerResult.new(m.selected_branch, create: false, remove: true)
+      elsif m.create_requested?
+        PickerResult.new(m.selected_branch, create: true, remove: false)
       elsif m.quitting?
-        nil
+        PickerResult.new(nil, create: false, remove: false)
       else
-        selected_idx = m.list.index
-        if selected_idx < m.items.size
-          item = m.items[selected_idx]
-          item.branch
-        end
+        branch = m.selected_branch
+        branch ||= m.items[m.list.index]?.try(&.branch)
+        PickerResult.new(branch, create: false, remove: false)
       end
     end
 
