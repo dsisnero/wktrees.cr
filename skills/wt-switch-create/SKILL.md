@@ -38,6 +38,12 @@ after it. Otherwise the task starts at the second token.
    no task text, confirm the worktree is ready and wait for the next
    instruction.
 
+**Agent note:** In agent-tool interfaces where each Bash call is a fresh
+process, `cd` via shell integration won't persist. Instead, confirm the
+worktree was created successfully via `wktrees list`, note its path,
+and continue work in the current directory — git branches are shared
+across all worktrees in the same repo.
+
 ## Cleanup
 
 Don't remove the worktree yourself. Run `wktrees remove` (if the
