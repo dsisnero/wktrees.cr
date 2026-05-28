@@ -215,7 +215,7 @@ These require major infrastructure, external tools, or are intentionally skipped
 
 | Item | Reason |
 |------|--------|
-| Config plugins (Claude/Codex/OpenCode) | Tool-specific manifest files |
+| Config plugins (Claude/Codex/OpenCode) | Tier 2 custom subcommand dispatch implemented; plugin architecture documented in plans/plugins.md |
 | hook run-pipeline stdin protocol | Internal protocol for background pipelines |
 | Upstream test suite (2028 tests) | Gradual porting, snapshot/integration tests |
 | ShellArgs alias args handling | Different template engine architecture (D1) |
