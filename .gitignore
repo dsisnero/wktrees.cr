@@ -8,3 +8,4 @@
 # macOS resource fork files (AppleDouble on FAT32/exFAT)
 ._*
 /.opencode/
+/.work_trees/

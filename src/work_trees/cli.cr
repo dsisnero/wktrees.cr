@@ -85,7 +85,7 @@ module WorkTrees
 
     # Try to find and run a wktrees-<name> binary on PATH.
     private def self.run_custom_subcommand(name, args) : Bool
-      binary = find_on_path("wktrees-#{name}")
+      binary = find_plugin(name)
       return false unless binary
 
       Process.run(
@@ -100,7 +100,26 @@ module WorkTrees
       false
     end
 
-    # Search PATH for an executable.
+    # Find a plugin executable: searches .work_trees/bin/ relative to
+    # the current directory first, then falls back to PATH.
+    def self.find_plugin(name : String) : String?
+      return nil if name.empty?
+
+      # First: project-local .work_trees/bin/wktrees-<name>
+      local_dir = File.join(Dir.current, ".work_trees", "bin")
+      local_bin = File.join(local_dir, "wktrees-#{name}")
+      return local_bin if File.executable?(local_bin)
+
+      # Second: PATH search for wktrees-<name>
+      path_dirs = ENV["PATH"]?.try(&.split(':')) || [] of String
+      path_dirs.each do |dir|
+        full_path = File.join(dir, "wktrees-#{name}")
+        return full_path if File.executable?(full_path)
+      end
+      nil
+    end
+
+    # Search PATH for an executable by exact name.
     def self.find_on_path(name : String) : String?
       path_dirs = ENV["PATH"]?.try(&.split(':')) || [] of String
       path_dirs.each do |dir|
