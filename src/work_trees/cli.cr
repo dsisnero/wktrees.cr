@@ -9,12 +9,39 @@ require "wait_group"
 
 module WorkTrees
   module CLI
+    KNOWN_COMMANDS = %w[list switch remove config hook step merge shell help]
+
     def self.run(args = ARGV)
       Output.init_from_flags(args)
-      return if handle_global_flags(args)
 
+      # Consume --yes/-y from args (allowed anywhere, acts globally)
+      yes = args.reject! { |a| a == "--yes" || a == "-y" }
+      ENV["WORKTREES_YES"] = "1" if yes
+
+      # No args: show help and exit
       if args.empty?
         print_help
+        exit 1
+      end
+
+      first = args[0]
+
+      # If the first arg is NOT a known command, treat it as a global flag
+      unless KNOWN_COMMANDS.includes?(first)
+        case first
+        when "--help", "-h"
+          print_help
+          exit 0
+        when "--version", "-V"
+          puts "wktrees #{WorkTrees::VERSION}"
+          exit 0
+        end
+      end
+
+      # If the first arg isn't a known command or flag, it's an error
+      unless first.in?(%w[--help -h --version -V]) || KNOWN_COMMANDS.includes?(first)
+        STDERR.puts "Unknown command: #{first}"
+        STDERR.puts "Run 'wktrees --help' for usage."
         exit 1
       end
 
@@ -48,23 +75,6 @@ module WorkTrees
       else
         dispatch_unknown(command, command_args)
       end
-    end
-
-    # Handle global flags. Returns true if handled (should exit).
-    private def self.handle_global_flags(args) : Bool
-      if args.delete("--help") || args.delete("-h")
-        print_help
-        return true
-      end
-      if args.delete("--version") || args.delete("-V")
-        puts "wktrees #{WorkTrees::VERSION}"
-        return true
-      end
-      if args.delete("--yes") || args.delete("-y")
-        ENV["WORKTREES_YES"] = "1"
-      end
-      # -v and -vv are parsed by Output.init_from_flags above
-      false
     end
 
     private def self.dispatch_unknown(command, args)
@@ -1085,19 +1095,42 @@ module WorkTrees
 
     def self.step(args : Array(String))
       sub = args[0]?
+      sub_args = args[1..]
 
-      OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: wktrees step <subcommand>"
-        parser.on("-h", "--help", "Show this help") do
-          puts parser
+      # Show step-level help when --help/-h is for the step command itself
+      if sub.nil? || %w[--help -h].includes?(sub)
+        puts "Usage: wktrees step <subcommand>"
+        puts "Subcommands: commit diff squash rebase push for-each eval prune copy-ignored promote relocate tether statusline"
+        exit 0
+      end
+
+      dispatch_step(sub, sub_args)
+    end
+
+    STEP_HELP = {
+      "commit"       => "Usage: wktrees step commit [options]\n\n  Commit staged changes.\n\n  Options:\n    -m MESSAGE, --message=MESSAGE  Commit message\n    -a, --all                      Stage all changes\n    -h, --help                     Show this help",
+      "diff"         => "Usage: wktrees step diff [--stat]\n\n  Show the diff of the current worktree.\n\n  Options:\n    --stat  Show diffstat instead of full diff\n    -h, --help  Show this help",
+      "squash"       => "Usage: wktrees step squash\n\n  Squash all commits on the current branch since branching.\n  Uses the merge-base with the default branch.",
+      "rebase"       => "Usage: wktrees step rebase [target]\n\n  Rebase current branch onto the given target (default: default branch).",
+      "push"         => "Usage: wktrees step push [target]\n\n  Push (fast-forward merge) current branch into the target (default: default branch).",
+      "for-each"     => "Usage: wktrees step for-each [options] <command>\n\n  Run a command in every worktree.\n\n  Options:\n    --concurrent     Run concurrently\n    -j N, --jobs=N   Max concurrent jobs (default: 8)\n    --dry-run        Show what would be run\n    -h, --help       Show this help",
+      "eval"         => "Usage: wktrees step eval <template>\n\n  Evaluate a template expression.\n  Example: wktrees step eval '{{ branch | sanitize }}'",
+      "prune"        => "Usage: wktrees step prune\n\n  Remove worktrees for branches that have been merged into the default branch.",
+      "copy-ignored" => "Usage: wktrees step copy-ignored [options]\n\n  Copy gitignored files to a new worktree.\n\n  Options:\n    -f, --force  Overwrite existing files\n    -h, --help   Show this help",
+      "promote"      => "Usage: wktrees step promote [options]\n\n  Promote the current branch content to another branch.\n\n  Options:\n    -b BRANCH, --branch=BRANCH  Target branch (default: default branch)\n    -h, --help                 Show this help",
+      "relocate"     => "Usage: wktrees step relocate\n\n  Move worktrees to their expected paths based on config template.",
+      "tether"       => "Usage: wktrees step tether <command>\n\n  Run a command tethered to the current worktree.\n  The command is killed when the worktree is removed.",
+      "statusline"   => "Usage: wktrees step statusline\n\n  Print a compact status line for the current worktree.",
+    }
+
+    private def self.dispatch_step(sub, sub_args)
+      if sub_args.includes?("--help") || sub_args.includes?("-h")
+        if help = STEP_HELP[sub]?
+          puts help
           exit 0
         end
       end
 
-      dispatch_step(sub, args[1..])
-    end
-
-    private def self.dispatch_step(sub, sub_args)
       # Group 1: commit operations
       case sub
       when "commit" then step_commit(sub_args)
@@ -1111,6 +1144,13 @@ module WorkTrees
     end
 
     private def self.dispatch_step2(sub, sub_args)
+      if sub_args.includes?("--help") || sub_args.includes?("-h")
+        if help = STEP_HELP[sub]?
+          puts help
+          exit 0
+        end
+      end
+
       case sub
       when "for-each"     then step_for_each(sub_args)
       when "eval"         then step_eval(sub_args)
@@ -1121,7 +1161,7 @@ module WorkTrees
       when "tether"       then step_tether(sub_args)
       when "statusline"   then step_statusline
       else
-        STDERR.puts "Usage: wktrees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether]"
+        STDERR.puts "Usage: wktrees step [commit|diff|squash|rebase|push|for-each|eval|prune|copy-ignored|promote|relocate|tether|statusline]"
         exit 1
       end
     end
