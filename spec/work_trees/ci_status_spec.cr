@@ -54,6 +54,23 @@ module WorkTrees
         CiStatus::Pending.terminal?.should be_false
         CiStatus::Unknown.terminal?.should be_false
       end
+
+      # Upstream parity: test_ci_status_color + test_pr_status_indicator
+      # Colors map: Passed→Green, Running→Pending(Blue), Failed→Red,
+      # Conflicts→Yellow, NoCI→BrightBlack, Error→Yellow
+      it "each variant has a non-empty symbol" do
+        CiStatus::Success.symbol.should_not be_empty
+        CiStatus::Failure.symbol.should_not be_empty
+        CiStatus::Pending.symbol.should_not be_empty
+        CiStatus::Unknown.symbol.should_not be_empty
+      end
+
+      it "Success and Failure are the only terminal states" do
+        CiStatus.values.each do |variant|
+          terminal = CiStatus::Success == variant || CiStatus::Failure == variant
+          variant.terminal?.should eq(terminal)
+        end
+      end
     end
 
     describe "fetch_ci_status" do

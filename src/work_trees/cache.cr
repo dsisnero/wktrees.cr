@@ -25,7 +25,7 @@ module WorkTrees
     # The root directory for a named cache kind.
     # Returns `<git-common-dir>/wt/cache/<kind>/`.
     def self.cache_dir(repo, kind : String) : String
-      File.join(repo.wt_dir, "cache", kind)
+      File.join(repo.git_common_dir, "wt", "cache", kind)
     end
 
     # Read and deserialize a JSON cache entry.
@@ -105,10 +105,22 @@ module WorkTrees
 
     # Remove every top-level .json file in dir, returning the count removed.
     # Missing directory returns 0. Non-.json siblings are left in place.
+    # Non-NotFound I/O errors (e.g. permission denied, NotADirectory)
+    # propagate so callers can report truthfully.
     def self.clear_json_files(dir : String) : Int32
-      return 0 unless Dir.exists?(dir)
+      entries = begin
+        Dir.children(dir)
+      rescue e : File::NotFoundError
+        # If the path exists but is a file (not a directory), propagate
+        # the error — matches upstream fs::read_dir NotADirectory behavior.
+        if File.exists?(dir)
+          raise e
+        end
+        return 0
+      end
+
       cleared = 0
-      Dir.children(dir).each do |name|
+      entries.each do |name|
         next unless name.ends_with?(".json")
         path = File.join(dir, name)
         cleared += 1 if clear_one(path)
@@ -118,8 +130,15 @@ module WorkTrees
 
     # Count top-level .json files in dir, returning 0 when missing.
     def self.count_json_files(dir : String) : Int32
-      return 0 unless Dir.exists?(dir)
-      Dir.children(dir).count(&.ends_with?(".json"))
+      entries = begin
+        Dir.children(dir)
+      rescue e : File::NotFoundError
+        if File.exists?(dir)
+          raise e
+        end
+        return 0
+      end
+      entries.count(&.ends_with?(".json"))
     end
   end
 end

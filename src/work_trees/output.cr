@@ -32,6 +32,7 @@ module WorkTrees
     def self.init_from_flags(args : Array(String)) : Nil
       if args.delete("-vv")
         @@verbosity = 2
+        args.delete("-v") # clean up -v if present alongside -vv
       elsif args.delete("-v")
         @@verbosity = 1
       elsif v = ENV["WORKTREES_VERBOSE"]?

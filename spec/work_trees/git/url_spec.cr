@@ -167,5 +167,55 @@ module WorkTrees
         url.repo.should eq("repo")
       end
     end
+
+    # Upstream parity: adversarial URL tests
+    describe "adversarial inputs" do
+      it "preserves dot segments as literals (no path traversal)" do
+        with_dot = Git::GitRemoteUrl.parse("https://gitlab.com/owner/./repo.git").not_nil!
+        normal = Git::GitRemoteUrl.parse("https://gitlab.com/owner/repo.git").not_nil!
+        with_dot.owner.should eq("owner/.")
+        with_dot.repo.should eq("repo")
+        with_dot.project_identifier.should_not eq(normal.project_identifier)
+      end
+
+      it "preserves double-dot as literal (no parent traversal)" do
+        url = Git::GitRemoteUrl.parse("https://gitlab.com/owner/../repo.git").not_nil!
+        url.owner.should eq("owner/..")
+        url.repo.should eq("repo")
+      end
+
+      it "treats empty user in ssh URL correctly" do
+        url = Git::GitRemoteUrl.parse("ssh://github.com/owner/repo.git").not_nil!
+        url.host.should eq("github.com")
+        url.owner.should eq("owner")
+      end
+
+      it "preserves @ in path for ssh URLs" do
+        url = Git::GitRemoteUrl.parse("git@github.com:owner/repo@v1.git").not_nil!
+        url.owner.should eq("owner")
+        url.repo.should eq("repo@v1")
+      end
+
+      it "handles case-sensitive hostnames" do
+        lower = Git::GitRemoteUrl.parse("https://github.com/owner/repo.git").not_nil!
+        upper = Git::GitRemoteUrl.parse("https://GITHUB.COM/owner/repo.git").not_nil!
+        # Host should preserve case but forge detection is case-insensitive
+        lower.github?.should be_true
+        upper.host.should eq("GITHUB.COM")
+      end
+    end
+
+    # Upstream parity: parse_owner_repo with nested groups
+    describe "parse_owner_repo nested" do
+      it "extracts nested owner from GitLab-style HTTPS" do
+        result = Git::GitRemoteUrl.parse_owner_repo("https://gitlab.com/group/subgroup/repo.git")
+        result.should eq({"group/subgroup", "repo"})
+      end
+
+      it "extracts deeply nested owner" do
+        result = Git::GitRemoteUrl.parse_owner_repo("https://gitlab.com/a/b/c/repo.git")
+        result.should eq({"a/b/c", "repo"})
+      end
+    end
   end
 end

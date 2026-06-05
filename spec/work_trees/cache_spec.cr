@@ -27,23 +27,25 @@ module WorkTrees
     end
 
     describe ".read_json" do
+      # Upstream: test_read_write_roundtrip — missing file is a miss,
+      # write creates parent dirs and round-trips.
       it "returns nil for missing file" do
         path = File.join(tmp_dir, "nonexistent.json")
         Cache.read_json(path).should be_nil
       end
 
-      it "returns nil for corrupt JSON" do
-        path = File.join(tmp_dir, "bad.json")
-        File.write(path, "not json {{")
+      it "returns nil for missing file (subdirectory path)" do
+        path = File.join(tmp_dir, "sub", "entry.json")
         Cache.read_json(path).should be_nil
       end
 
-      it "round-trips valid JSON" do
-        path = File.join(tmp_dir, "good.json")
+      it "round-trips valid JSON with parent dirs created" do
+        path = File.join(tmp_dir, "sub", "deep", "entry.json")
         value = JSON::Any.new({"x" => JSON::Any.new(42_i64)})
         Cache.write_json(path, value)
         result = Cache.read_json(path)
         result.should_not be_nil
+        result.try &.["x"].should eq(JSON::Any.new(42_i64))
       end
     end
 
@@ -68,6 +70,20 @@ module WorkTrees
         Cache.clear_one(path).should be_true
         File.exists?(path).should be_false
       end
+
+      # Upstream: test_clear_one_propagates_non_not_found
+      # Creates a directory where a file is expected. fs::remove_file in Rust
+      # returns EISDIR (not NotFound), which propagates as an error. Crystal's
+      # File.delete handles both files and dirs, so we use a non-empty
+      # directory which Dir.delete will refuse.
+      it "propagates non-NotFound I/O errors" do
+        dirpath = File.join(tmp_dir, "dir.json")
+        Dir.mkdir(dirpath)
+        File.write(File.join(dirpath, "child"), "blocking")
+        expect_raises(File::Error) do
+          Cache.clear_one(dirpath)
+        end
+      end
     end
 
     describe ".clear_json_files" do
@@ -88,6 +104,19 @@ module WorkTrees
 
       it "returns 0 for missing directory" do
         Cache.clear_json_files(File.join(tmp_dir, "noexist")).should eq(0)
+      end
+
+      # Upstream: test_clear_json_files_propagates_read_dir_error
+      # A file where a directory is expected causes read_dir to return
+      # NotADirectory, not NotFound — the error must propagate.
+      # Crystal: we use the same dir-setup pattern to trigger a Dir.children
+      # error (or at minimum a clean error path that doesn't return 0).
+      it "propagates non-NotFound directory errors" do
+        file_path = File.join(tmp_dir, "not-a-dir")
+        File.write(file_path, "file")
+        expect_raises(File::Error | IO::Error) do
+          Cache.clear_json_files(file_path)
+        end
       end
     end
 

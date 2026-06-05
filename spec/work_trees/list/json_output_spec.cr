@@ -78,6 +78,51 @@ module WorkTrees
         json.should_not contain("ci")
         json.should_not contain("summary")
       end
+
+      it "produces valid JSON that parses back" do
+        commit = List::JsonOutput::JsonCommit.new(
+          sha: "deadbeef", short_sha: "deadbee", message: "feat: login", timestamp: 1700000000_i64,
+        )
+        item = List::JsonOutput::JsonItem.new(commit: commit, branch: "fix/auth", kind: "worktree")
+        json = item.to_json
+        parsed = JSON.parse(json)
+        parsed["branch"].should eq(JSON::Any.new("fix/auth"))
+        parsed["kind"].should eq(JSON::Any.new("worktree"))
+        parsed["commit"]["sha"].should eq(JSON::Any.new("deadbeef"))
+      end
+    end
+
+    describe "JsonDiff" do
+      it "serializes added and deleted" do
+        diff = List::JsonOutput::JsonDiff.new(added: 100, deleted: 50)
+        json = diff.to_json
+        json.should contain("100")
+        json.should contain("50")
+      end
+
+      it "round-trips through JSON parse" do
+        diff = List::JsonOutput::JsonDiff.new(added: 7, deleted: 3)
+        json = diff.to_json
+        parsed = JSON.parse(json)
+        parsed["added"].should eq(JSON::Any.new(7_i64))
+        parsed["deleted"].should eq(JSON::Any.new(3_i64))
+      end
+    end
+
+    describe "JsonCi" do
+      it "serializes status, source, and stale flag" do
+        ci = List::JsonOutput::JsonCi.new(status: "failed", source: "pr", stale: true)
+        json = ci.to_json
+        json.should contain("failed")
+        json.should contain("pr")
+        json.should contain("stale")
+      end
+
+      it "stale defaults to false" do
+        ci = List::JsonOutput::JsonCi.new(status: "passed", source: "branch")
+        json = ci.to_json
+        json.should contain("false")
+      end
     end
   end
 end

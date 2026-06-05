@@ -12,7 +12,8 @@ module WorkTrees
 
     # Extract binary name from an argv[0] string.
     def self.binary_name_from(argv0 : String) : String
-      name = File.basename(argv0)
+      # Normalize Windows backslashes so basename works cross-platform
+      name = File.basename(argv0.gsub('\\', '/'))
       # Strip .exe on Windows
       name = name.rchop(".exe") if name.ends_with?(".exe")
       name

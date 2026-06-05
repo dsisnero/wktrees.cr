@@ -7,6 +7,16 @@ describe WorkTrees::Git::BranchResolver do
       result.should eq("feature-auth")
     end
 
+    it "passes through branch names with slashes" do
+      result = WorkTrees::Git::BranchResolver.resolve("feat/nested/branch")
+      result.should eq("feat/nested/branch")
+    end
+
+    it "passes through branch names with dots" do
+      result = WorkTrees::Git::BranchResolver.resolve("v1.2.3-hotfix")
+      result.should eq("v1.2.3-hotfix")
+    end
+
     it "resolves ^ to default branch" do
       result = WorkTrees::Git::BranchResolver.resolve("^")
       result.should_not be_empty
@@ -20,14 +30,9 @@ describe WorkTrees::Git::BranchResolver do
     end
 
     it "saves and resolves - as previous branch" do
-      # Save current branch as previous
       current = WorkTrees::Git::BranchResolver.resolve("@")
       WorkTrees::Git::BranchResolver.save_previous(current)
-
-      # Switch to another branch (just save it)
       WorkTrees::Git::BranchResolver.save_previous("some-other")
-
-      # Now - should resolve to the first saved branch
       result = WorkTrees::Git::BranchResolver.resolve("-")
       result.should_not be_empty
       result.should_not eq("-")
@@ -40,8 +45,29 @@ describe WorkTrees::Git::BranchResolver do
 
     it "parses mr:N syntax (falls back if glab not available)" do
       result = WorkTrees::Git::BranchResolver.resolve("mr:7")
-      # Should return either resolved branch or "mr:7" as fallback
       result.should_not be_empty
+    end
+  end
+
+  describe "shortcut constants" do
+    it "defines ^ as default branch shortcut" do
+      WorkTrees::Git::BranchResolver::SHORTCUT_DEFAULT.should eq("^")
+    end
+
+    it "defines @ as current branch shortcut" do
+      WorkTrees::Git::BranchResolver::SHORTCUT_CURRENT.should eq("@")
+    end
+
+    it "defines - as previous branch shortcut" do
+      WorkTrees::Git::BranchResolver::SHORTCUT_PREVIOUS.should eq("-")
+    end
+
+    it "defines pr: prefix" do
+      WorkTrees::Git::BranchResolver::PR_PREFIX.should eq("pr:")
+    end
+
+    it "defines mr: prefix" do
+      WorkTrees::Git::BranchResolver::MR_PREFIX.should eq("mr:")
     end
   end
 end

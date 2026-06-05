@@ -47,6 +47,20 @@ module WorkTrees
           Dir.delete(dir) if Dir.exists?(dir)
         end
       end
+
+      it "returns nil for empty string" do
+        WorkTrees::CLI.find_plugin("").should be_nil
+      end
+
+      it "returns nil for name with path separator" do
+        WorkTrees::CLI.find_plugin("foo/bar").should be_nil
+      end
+    end
+
+    describe "find_on_path" do
+      it "returns nil for empty string" do
+        WorkTrees::CLI.find_on_path("").should be_nil
+      end
     end
   end
 end

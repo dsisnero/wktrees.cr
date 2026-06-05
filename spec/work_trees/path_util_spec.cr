@@ -66,6 +66,55 @@ module WorkTrees
         result = PathUtil.expand_home("~")
         result.should eq(Path.home.to_s)
       end
+
+      it "expands ~/ with just ~/" do
+        result = PathUtil.expand_home("~/")
+        result.should end_with("/")
+        result.should_not contain("~")
+      end
+
+      it "does not expand ~ in the middle of path" do
+        result = PathUtil.expand_home("/tmp/~user/repo")
+        result.should eq("/tmp/~user/repo")
+      end
+
+      it "handles empty string" do
+        PathUtil.expand_home("").should eq("")
+      end
+    end
+
+    describe "sanitize_for_filename" do
+      it "handles already empty string" do
+        PathUtil.sanitize_for_filename("").should eq("")
+      end
+
+      it "collapses consecutive invalid chars to single hyphen" do
+        result = PathUtil.sanitize_for_filename("a//b")
+        result.should eq("a-b")
+      end
+
+      it "handles leading hyphen after sanitize" do
+        result = PathUtil.sanitize_for_filename("/feature/branch")
+        result.should eq("feature-branch")
+      end
+
+      it "handles trailing hyphen after sanitize" do
+        result = PathUtil.sanitize_for_filename("feature/branch/")
+        result.should eq("feature-branch")
+      end
+    end
+
+    describe "format_path_for_display" do
+      it "handles home directory exactly" do
+        home = Path.home.to_s
+        result = PathUtil.format_path_for_display(home)
+        result.should contain("~")
+      end
+
+      it "returns original for non-home paths" do
+        result = PathUtil.format_path_for_display("/tmp/feature")
+        result.should eq("/tmp/feature")
+      end
     end
   end
 end

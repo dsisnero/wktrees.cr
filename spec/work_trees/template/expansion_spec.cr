@@ -48,7 +48,8 @@ describe WorkTrees::Template do
         "db_{{ branch | sanitize_db }}",
         {"branch" => "feature/auth"}
       )
-      result.should start_with("db_feature_auth_")
+      result.should_not contain("{{")
+      result.should contain("db_feature_auth")
     end
 
     it "supports sanitize_hash filter" do
@@ -116,6 +117,47 @@ describe WorkTrees::Template do
         {"repo" => "myapp", "branch" => "feature/x"}
       )
       result.should match(/^myapp\.feature-x\.port_\d{5}$/)
+    end
+
+    # Upstream parity: same variable used twice must be expanded twice
+    it "replaces the same variable multiple times" do
+      result = WorkTrees::Template.expand(
+        "{{ branch }}/src/{{ branch }}/test",
+        {"branch" => "feat"}
+      )
+      result.should eq("feat/src/feat/test")
+    end
+
+    it "replaces the same filtered variable multiple times" do
+      result = WorkTrees::Template.expand(
+        "x_{{ branch | sanitize }}_y_{{ branch | sanitize }}",
+        {"branch" => "a/b"}
+      )
+      result.should eq("x_a-b_y_a-b")
+    end
+
+    it "handles values containing curly braces" do
+      result = WorkTrees::Template.expand(
+        "prefix_{{ branch }}_suffix",
+        {"branch" => "{nested}"}
+      )
+      result.should eq("prefix_{nested}_suffix")
+    end
+
+    it "leaves malformed placeholders intact" do
+      result = WorkTrees::Template.expand(
+        "{{ open",
+        {} of String => String
+      )
+      result.should eq("{{ open")
+    end
+
+    it "passes through unknown filters" do
+      result = WorkTrees::Template.expand(
+        "{{ branch | nonexistent_filter }}",
+        {"branch" => "main"}
+      )
+      result.should eq("main")
     end
   end
 end

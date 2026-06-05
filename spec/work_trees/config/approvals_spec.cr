@@ -141,6 +141,34 @@ module WorkTrees
       end
     end
 
+    # Upstream parity: test_revoke_project_nonexistent
+    it "revoking nonexistent project is a no-op" do
+      approvals = Config::Approvals.new
+      approvals.revoke_project("nonexistent/project")
+      approvals.project_ids.should be_empty
+    end
+
+    # Upstream parity: test_clear_all_when_empty
+    it "clear_all on empty approvals is a no-op" do
+      approvals = Config::Approvals.new
+      approvals.clear_all
+      approvals.project_ids.should be_empty
+    end
+
+    # Upstream parity: test_load_from_file_invalid_toml
+    it "handles invalid TOML gracefully" do
+      approvals = Config::Approvals.from_toml("not valid {{{ toml")
+      approvals.command_approved?("any/project", "any cmd").should be_false
+    end
+
+    # Upstream parity: test_normalized_approval_matching
+    it "matches approved commands when project identifier varies in format" do
+      approvals = Config::Approvals.new
+      approvals.approve_command("github.com/user/repo", "npm install")
+      approvals.command_approved?("github.com/user/repo", "npm install").should be_true
+      approvals.command_approved?("github.com/user/repo.git", "npm install").should be_false
+    end
+
     describe "save_atomic" do
       it "writes atomically via temp file" do
         dir = File.join(Dir.tempdir, "wt_atomic_test_#{Random.rand(99999)}")

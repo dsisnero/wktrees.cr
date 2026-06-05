@@ -22,6 +22,26 @@ module WorkTrees
         result = Invocation.binary_name_from("./target/debug/work_trees")
         result.should eq("work_trees")
       end
+
+      it "strips .exe from Windows full path" do
+        result = Invocation.binary_name_from("C:\\tools\\wt.exe")
+        result.should eq("wt")
+      end
+
+      it "keeps bare name with just dot" do
+        result = Invocation.binary_name_from("work_trees.some")
+        result.should eq("work_trees.some")
+      end
+
+      it "strips only .exe suffix" do
+        result = Invocation.binary_name_from("wt.exe.bak")
+        result.should eq("wt.exe.bak")
+      end
+
+      it "returns empty string for empty input" do
+        result = Invocation.binary_name_from("")
+        result.should eq("")
+      end
     end
 
     describe "invocation_path" do
@@ -42,6 +62,18 @@ module WorkTrees
 
       it "returns false for bare binary name" do
         Invocation.was_invoked_with_explicit_path?("wt").should be_false
+      end
+
+      it "returns false for empty string" do
+        Invocation.was_invoked_with_explicit_path?("").should be_false
+      end
+
+      it "returns true for just a forward slash" do
+        Invocation.was_invoked_with_explicit_path?("/").should be_true
+      end
+
+      it "returns true for just a backslash" do
+        Invocation.was_invoked_with_explicit_path?("\\").should be_true
       end
     end
   end

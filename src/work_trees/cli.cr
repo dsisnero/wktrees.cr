@@ -131,6 +131,7 @@ module WorkTrees
 
     # Search PATH for an executable by exact name.
     def self.find_on_path(name : String) : String?
+      return nil if name.empty?
       path_dirs = ENV["PATH"]?.try(&.split(':')) || [] of String
       path_dirs.each do |dir|
         full_path = File.join(dir, name)

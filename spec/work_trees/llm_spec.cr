@@ -37,6 +37,41 @@ module WorkTrees
       it "returns empty for empty diff" do
         Commands.prepare_diff("", max_chars: 1000).should eq("")
       end
+
+      # Upstream parity: preserves header content before first diff block
+      it "preserves preamble text before first diff block" do
+        diff = "commit abc123\nAuthor: Test\n\ndiff --git a/x.rs b/x.rs\n+code\n"
+        result = Commands.prepare_diff(diff, max_chars: 100)
+        result.should contain("commit abc123")
+        result.should contain("diff --git a/x.rs")
+      end
+
+      # Upstream parity: handles single large file within max_files
+      it "truncates lines within a single large file" do
+        lines = ["diff --git a/big.rs b/big.rs"]
+        200.times { |i| lines << "+line #{i}" }
+        diff = lines.join('\n')
+
+        result = Commands.prepare_diff(diff, max_chars: 50, max_lines_per_file: 10, max_files: 1)
+        result.should contain("truncated")
+        result.lines.size.should be < 200
+      end
+
+      # Adversarial: diff contains "diff --git" in code context, not as boundary
+      it "does not split on diff --git appearing inside code" do
+        diff = "diff --git a/main.rs b/main.rs\n+fn log(msg: &str) {\n+    println!(\"diff --git detected\");\n+}\n" +
+               "diff --git a/lib.rs b/lib.rs\n+fn helper() {}\n"
+        result = Commands.prepare_diff(diff, max_chars: 200)
+        # Should still recognize the two proper file boundaries
+        result.lines.count { |l| l.starts_with?("diff --git") }.should eq(2)
+      end
+
+      # Edge case: exactly max_chars
+      it "handles diff exactly at max_chars boundary" do
+        diff = "diff --git a/x b/x\n+line\n"
+        result = Commands.prepare_diff(diff, max_chars: diff.size)
+        result.should eq(diff)
+      end
     end
 
     describe "shell_wrap_command" do

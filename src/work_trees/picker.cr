@@ -8,6 +8,7 @@
 
 require "bubbles"
 require "lipgloss"
+require "openssl"
 require "./git/worktree_info"
 
 module WorkTrees
@@ -89,11 +90,13 @@ module WorkTrees
       property selected_branch : String?
       property? create_requested : Bool
       property? remove_requested : Bool
+      property cache_dir : String?
 
       def initialize(
         @items : Array(PickerItem),
         terminal_width : Int32,
         terminal_height : Int32,
+        @cache_dir : String? = nil,
       )
         @preview_mode = PreviewMode::WorkingTree
         @quitting = false
@@ -209,10 +212,22 @@ module WorkTrees
 
       # Build a command that runs the preview computation in a background
       # fiber and sends a PreviewLoadedMsg when complete.
+      # Uses PreviewCache on disk when cache_dir is set.
       private def load_preview(item : PickerItem) : Proc(Tea::Msg?)
         mode = @preview_mode
+        dir = @cache_dir
         -> : Tea::Msg? {
+          if dir
+            cache_key = PreviewCache.make_key(item.branch, mode, item.head_sha)
+            if cached = PreviewCache.read(cache_key, dir)
+              return PreviewLoadedMsg.new(cached)
+            end
+          end
           content = Picker.run_preview(item, mode)
+          if dir
+            cache_key = PreviewCache.make_key(item.branch, mode, item.head_sha)
+            PreviewCache.write(cache_key, content, dir)
+          end
           PreviewLoadedMsg.new(content)
         }
       end
@@ -239,7 +254,16 @@ module WorkTrees
 
     private def self.run_tui_picker(worktrees : Array(Git::WorktreeInfo), current_branch : String?) : PickerResult
       items = build_items(worktrees, current_branch)
-      model = Model.new(items, terminal_width: 80, terminal_height: 24)
+
+      # Set up cache directory if we can detect a git repo
+      cache_dir = begin
+        repo = Git::Repository.current
+        File.join(repo.git_common_dir, "cache", "picker-preview")
+      rescue
+        nil
+      end
+
+      model = Model.new(items, terminal_width: 80, terminal_height: 24, cache_dir: cache_dir)
 
       program = Tea.new_program(
         model,
@@ -280,6 +304,34 @@ module WorkTrees
     end
 
     # -- Preview computation ---------------------------------------------------
+
+    # PreviewCache provides persistent on-disk caching of computed previews,
+    # keyed by SHA-256(branch + mode + head_sha) so previews are never stale.
+    module PreviewCache
+      # Generate a deterministic cache key from branch, mode, and HEAD SHA.
+      def self.make_key(branch : String, mode : PreviewMode, head_sha : String) : String
+        input = "#{branch}:#{mode.to_i}:#{head_sha}"
+        digest = OpenSSL::Digest.new("SHA256")
+        digest.update(input)
+        digest.final.hexstring
+      end
+
+      # Read a cached preview from disk. Returns nil on miss.
+      def self.read(key : String, cache_dir : String) : String?
+        path = File.join(cache_dir, key)
+        File.read(path)
+      rescue File::NotFoundError | IO::Error
+        nil
+      end
+
+      # Write a preview to the disk cache.
+      def self.write(key : String, content : String, cache_dir : String) : Nil
+        Dir.mkdir_p(cache_dir) unless Dir.exists?(cache_dir)
+        File.write(File.join(cache_dir, key), content)
+      rescue IO::Error
+        nil
+      end
+    end
 
     # Build git command string for working tree preview.
     def self.working_tree_preview_cmd : String

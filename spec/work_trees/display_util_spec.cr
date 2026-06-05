@@ -69,6 +69,37 @@ module WorkTrees
         result = DisplayUtil.format_relative_time_short(now)
         result.should eq("now")
       end
+
+      # Upstream boundary tests: week takes priority over days
+      it "returns '1w' for exactly 604800 seconds (7 days)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 604800, now).should eq("1w")
+      end
+
+      it "returns '2w' for exactly 1209600 seconds (14 days)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 1209600, now).should eq("2w")
+      end
+
+      it "returns '6d' for 604799 seconds (1s under 1 week)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 604799, now).should eq("6d")
+      end
+
+      it "returns '1mo' for exactly 2592000 seconds (30 days)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 2592000, now).should eq("1mo")
+      end
+
+      it "returns '4w' for 2419200 seconds (just over 28 days)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 2419200, now).should eq("4w")
+      end
+
+      it "returns '1y' for exactly 31536000 seconds (365 days)" do
+        now = 1700000000_i64
+        DisplayUtil.format_relative_time_impl(now - 31536000, now).should eq("1y")
+      end
     end
 
     describe "truncate_to_width" do

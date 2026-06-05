@@ -189,6 +189,8 @@ module WorkTrees
 
     def exit_code : Int32
       @status.exit_code
+    rescue RuntimeError
+      127
     end
   end
 

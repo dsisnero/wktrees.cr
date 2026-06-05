@@ -70,6 +70,52 @@ module WorkTrees
         Output.verbosity.should eq(0)
         args.should eq(["list", "--full"]) # unchanged
       end
+
+      it "prefers -vv when both -v and -vv present" do
+        args = ["-v", "-vv", "list"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(2)
+        args.should_not contain("-vv")
+        args.should_not contain("-v")
+        Output.verbosity = 0
+      end
+
+      it "reads verbosity from WORKTREES_VERBOSE env var" do
+        ENV["WORKTREES_VERBOSE"] = "2"
+        args = ["list"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(2)
+        args.should eq(["list"]) # env var consumed
+        Output.verbosity = 0
+      ensure
+        ENV.delete("WORKTREES_VERBOSE")
+      end
+
+      it "CLI flag takes precedence over env var" do
+        ENV["WORKTREES_VERBOSE"] = "2"
+        args = ["-v", "list"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(1) # -v wins over env 2
+        Output.verbosity = 0
+      ensure
+        ENV.delete("WORKTREES_VERBOSE")
+      end
+
+      it "consumes -v anywhere in the args array" do
+        args = ["list", "-v", "--full"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(1)
+        args.should_not contain("-v")
+        Output.verbosity = 0
+      end
+
+      it "consumes -vv after the command name" do
+        args = ["list", "-vv"]
+        Output.init_from_flags(args)
+        Output.verbosity.should eq(2)
+        args.should eq(["list"])
+        Output.verbosity = 0
+      end
     end
 
     describe "data output" do
@@ -77,6 +123,26 @@ module WorkTrees
         io = IO::Memory.new
         Output.data("table data", io)
         io.to_s.should contain("table data")
+      end
+
+      it "appends newline to data output" do
+        io = IO::Memory.new
+        Output.data("line", io)
+        io.to_s.should eq("line\n")
+      end
+    end
+
+    describe "status output" do
+      it "writes status to provided IO" do
+        io = IO::Memory.new
+        Output.status("progress: 50%", io)
+        io.to_s.should contain("progress: 50%")
+      end
+
+      it "appends newline to status" do
+        io = IO::Memory.new
+        Output.status("done", io)
+        io.to_s.should eq("done\n")
       end
     end
 
@@ -91,6 +157,23 @@ module WorkTrees
       it "returns plain output when not verbose" do
         result = Output.command_output("echo hello", "hello world")
         result.should eq("hello world")
+      end
+
+      it "preserves multi-line output" do
+        result = Output.command_output("ls", "a\nb\nc")
+        result.should contain("a")
+        result.should contain("b")
+        result.should contain("c")
+      end
+
+      it "handles empty output" do
+        result = Output.command_output("true", "")
+        result.should eq("")
+      end
+
+      it "handles output with only whitespace" do
+        result = Output.command_output("cmd", "  \n  ")
+        result.should_not be_nil
       end
     end
   end
