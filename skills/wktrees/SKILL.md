@@ -15,11 +15,15 @@ Crystal port of [worktrunk](https://github.com/max-sixty/worktrunk) (Rust, v0.51
 Reference files are maintained in this repository:
 
 - **plans/parity.md**: Port status and feature parity tracking
-- **plans/interactive_picker.md**: Interactive picker architecture plan
+- **plans/interactive_picker.md**: Bubbletea TUI interactive picker architecture
+- **plans/plugins.md**: Plugin system architecture (two-tier: config hooks + custom subcommands)
+- **plans/cli_research.md**: clip vs clim CLI framework comparison (conclusion: keep OptionParser)
+- **docs/architecture.md**: Source tree layout, design decisions, divergences
+- **docs/development.md**: Development workflow, coding guidelines
 
 ## Two Types of Configuration
 
-work_trees uses two separate config files with different scopes and behaviors:
+wktrees uses two separate config files with different scopes and behaviors:
 
 ### User Config (`~/.config/worktrees/config.toml`)
 - **Scope**: Personal preferences for the individual developer
@@ -197,33 +201,17 @@ bash -n -c "if [ true ]; then echo ok; fi"
 
 ```bash
 # View all configuration
-work_trees config show
-
-# Create initial user config
-work_trees config create
-
-# View help
-work_trees --help
-
-# List worktrees
-work_trees list --full
-
-# Switch to a worktree
-work_trees switch <branch>
-
-# Create and switch to a new worktree
-work_trees switch --create <branch>
-
-# Merge and cleanup
-work_trees merge
-
-# Run hooks manually
-work_trees hook run <type>
-
-# Step operations
-work_trees step commit
-work_trees step diff
-work_trees step for-each '<command>'
+wktrees config show
+wktrees config create
+wktrees --help
+wktrees list --full
+wktrees switch <branch>
+wktrees switch --create <branch>
+wktrees merge
+wktrees hook run <type>
+wktrees step commit
+wktrees step diff
+wktrees step for-each '<command>'
 ```
 
 ## Hook Approvals in Non-Interactive Sessions
@@ -251,7 +239,7 @@ When the user requests spawning a worktree with an agent in a background session
 
 **tmux** (check `$TMUX` env var):
 ```bash
-tmux new-session -d -s <branch-name> "work_trees switch --create <branch-name> -x <agent-cli> -- '<task description>'"
+tmux new-session -d -s <branch-name> "wktrees switch --create <branch-name> -x <agent-cli> -- '<task description>'"
 ```
 
 **Zellij** (check `$ZELLIJ` env var):
@@ -268,7 +256,7 @@ zellij run -- wktrees switch --create <branch-name> -x <agent-cli> -- '<task des
 
 Example (tmux, Claude Code):
 ```bash
-tmux new-session -d -s fix-auth-bug "work_trees switch --create fix-auth-bug -x claude -- \
+tmux new-session -d -s fix-auth-bug "wktrees switch --create fix-auth-bug -x claude -- \
   'The login session expires after 5 minutes. Find the session timeout config and extend it to 24 hours.'"
 ```
 
@@ -277,7 +265,7 @@ tmux new-session -d -s fix-auth-bug "work_trees switch --create fix-auth-bug -x 
 To spawn multiple sub-Agents that each work in their own worktree from one Claude Code session — no terminal multiplexer, no human in the other pane — pre-create each worktree from the parent and pass the path into the sub-Agent prompt:
 
 ```bash
-work_trees switch --create <branch> --no-cd --no-hooks
+wktrees switch --create <branch> --no-cd --no-hooks
 ```
 
 Then call the `Agent` tool **without** `isolation: "worktree"`, naming the path in the prompt:

@@ -154,7 +154,7 @@ Ported from [max-sixty/worktrunk](https://github.com/max-sixty/worktrunk) (Rust 
   - `--path-template`: Customize worktree path
   - `--no-hooks`: Skip hook execution
   - Shortcuts: `^` (default), `@` (current), `-` (previous), `pr:N`, `mr:N`
-  - fzf interactive picker when run without arguments
+  - bubbletea TUI interactive picker when run without arguments (Phases A+B+D complete)
   - Shell cd directive protocol
 - **remove** — Remove worktrees and optionally branches
   - `--force`/`-f`: Force removal of dirty worktree

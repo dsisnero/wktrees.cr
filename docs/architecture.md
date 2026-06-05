@@ -78,3 +78,10 @@ src/
 | D3 | Concurrency | Crystal fibers + WaitGroup instead of rayon thread pool |
 | D4 | TUI Picker | Integrated bubbletea TUI instead of fzf/skim binary |
 | D5 | CLI Name | `wktrees` binary, `WorkTrees` module namespace |
+| D6 | Preview Protocol | Tea messages via fibers instead of temp-file state and skim heartbeat |
+| D7 | Items/List | `Bubbles::List::DefaultItem` instead of `SkimItem` trait |
+| D8 | Preview Cache | SHA-256-keyed JSON files instead of Rust DashMap/disk cache |
+
+## Implementation Notes
+
+- **2026-06-05**: Binary renamed to `wktrees` (D5). Interactive picker uses bubbletea TUI with Bubbles::List + Viewport (D4). PreviewCache uses SHA-256 for content-addressed disk cache (D8). 837 specs, 0 failures.

@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/max-sixty/worktrunk (Rust, v0.51.0)
 **Pinned:** `8c6ed7e3f68efb3bac43c420d136f5360ff24d54` (`vendor/worktrunk`)
-**Status:** 110+ commits, 653 specs, 0 failures, all gates green. All 3 drift checks pass (port inventory: 3703 items, source parity: 1675 API items, test parity: 2028 tests). Phases 0-4 feature-complete. Phase 5 features 5.1-5.9 complete. Interactive picker Phase A+B+D-start done (bubbletea TUI), Phase D finish (alt-c/alt-r/cache) remaining.
+**Status:** 130+ commits, 837 specs, 0 failures, all gates green.
 
 **Binary:** `wktrees` (shard: `wktrees`, module: `WorkTrees`)
 **Shards:** toml, lipgloss, bubbles (→ bubbletea.cr transitively)
@@ -138,12 +138,12 @@
 - [x] bash: compgen-based, zsh: compdef, fish: complete
 - [x] Dynamic step subcommand completions (bash step_subs variable)
 
-### 3.4 Interactive Picker ✅ (Phase A+B+D-start complete)
+### 3.4 Interactive Picker ✅ (Complete)
 - [x] Phase A: PickerItem, PreviewMode, Model (Tea::Model + Bubbles::List + Bubbles::Viewport)
 - [x] Phase B: 5 preview modes (WorkingTree, Log, BranchDiff, UpstreamDiff, Summary) with async loading
+- [x] Phase C: progressive loading, relative timestamps, keyboard legend
 - [x] Phase D start: Enter select with selected_branch, is_current marker, TTY guard with fallback
-- [x] Wired into wktrees switch (no args) flow
-- [ ] Phase D finish: alt-c create, alt-r remove, persistent disk cache
+- [x] Phase D finish: alt-c create, alt-r remove, persistent SHA-keyed disk cache (PreviewCache module)
 
 ---
 
@@ -189,8 +189,8 @@ ListItem, DisplayFields, ListData with JSON::Serializable, statusline formatting
 ### 5.9 ✅ Path Utilities — `src/work_trees/path_util.cr`
 sanitize_for_filename, format_path_for_display with Path.home, expand_home.
 
-### 5.10 ⬜ Interactive Picker (Phase D finish remaining)
-bubbletea TUI with Bubbles::List + Bubbles::Viewport, 5 preview modes, async loading, TTY guard. Remaining: alt-c create, alt-r remove, persistent cache. → see plans/interactive_picker.md
+### 5.10 ✅ Interactive Picker (Phase D complete)
+alt-c create, alt-r remove, persistent SHA-keyed disk cache (PreviewCache module with SHA-256(branch + mode + head_sha) keys). Cache wired into load_preview for instant revisit. → see plans/interactive_picker.md
 
 ### 5.11 ❌ Upstream Test Suite (deferred)
 2028 upstream tests not yet ported to Crystal specs.
@@ -219,7 +219,7 @@ These require major infrastructure, external tools, or are intentionally skipped
 | hook run-pipeline stdin protocol | Internal protocol for background pipelines |
 | Upstream test suite (2028 tests) | Gradual porting, snapshot/integration tests |
 | ShellArgs alias args handling | Different template engine architecture (D1) |
-| Interactive picker Phase D finish | Needs real terminal for testing (alt-c, alt-r, cache) |
+| Interactive picker Phase D finish | ✅ Complete: alt-c, alt-r, persistent cache implemented |
 
 ---
 
@@ -229,4 +229,4 @@ These require major infrastructure, external tools, or are intentionally skipped
 - **2026-05-18**: Crystal enum limitation → class hierarchy for GitError (35 variants).
 - **2026-05-18**: Struct → Class for WorktreeInfo (needed reference semantics).
 - **2026-05-18**: `OptionParser.unknown_args` puts branch names in `before` (not `after`).
-- **2026-05-25**: 110+ commits, 653 specs, 0 failures. All 3 drift checks pass. Full port: Phase 0-4 complete, Phase 5.1-5.9 complete, interactive picker Phase A+B+D-start done. 65+ commits this session. Shards: lipgloss, bubbles (→ bubbletea.cr). Binary: `wktrees` v0.2.0.
+- **2026-05-29**: 801 specs (+126 since 2026-05-25).
