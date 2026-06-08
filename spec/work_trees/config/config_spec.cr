@@ -24,7 +24,7 @@ describe WorkTrees::Config do
   describe "UserConfig" do
     it "has sensible defaults" do
       config = WorkTrees::Config::UserConfig.new
-      config.worktree_path_template.should eq("~/worktrees/{{ branch | sanitize }}")
+      config.worktree_path_template.should eq("{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}")
     end
 
     it "is customizable" do
@@ -80,6 +80,35 @@ describe WorkTrees::Config do
       merged = WorkTrees::Config.merge(user, project)
       merged.list_config.full?.should be_true
       merged.list_config.branches?.should be_true
+    end
+  end
+
+  describe "vendor parity" do
+    # Mirrors upstream tests:
+    #   vendor/worktrunk/src/config/user/tests.rs: test_worktrunk_config_default
+    #   vendor/worktrunk/src/config/mod.rs: test_default_config
+    it "defaults to sibling-directory worktree path" do
+      config = WorkTrees::Config::UserConfig.new
+      # vendor: "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
+      config.worktree_path_template.should eq("{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}")
+    end
+
+    # Mirrors vendor/test_format_worktree_path in mod.rs:187-199
+    # The sibling-directory template expands with raw vars; `..` is NOT resolved
+    # by the template engine (only ~ is expanded), leaving resolution to git/filesystem.
+    it "expands format path with vars" do
+      result = WorkTrees::Template.expand(
+        WorkTrees::Config::UserConfig::DEFAULT_PATH_TEMPLATE,
+        {"repo_path" => "/home/user/code/myproject", "repo" => "myproject", "branch" => "feature/auth"}
+      )
+      # vendor: sibling directory → /home/user/code/myproject/../myproject.feature-auth
+      result.should eq("/home/user/code/myproject/../myproject.feature-auth")
+    end
+
+    # Mirrors vendor/test_worktree_path_for_project_falls_back_to_default (tests.rs:232-240)
+    it "falls back to default when no config is set" do
+      config = WorkTrees::Config::UserConfig.new
+      config.worktree_path_template.should eq(WorkTrees::Config::UserConfig::DEFAULT_PATH_TEMPLATE)
     end
   end
 

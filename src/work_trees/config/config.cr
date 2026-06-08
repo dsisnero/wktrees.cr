@@ -17,7 +17,7 @@ module WorkTrees
       property remove_config : RemoveConfig
       property switch_config : SwitchConfig
 
-      DEFAULT_PATH_TEMPLATE = "~/worktrees/{{ branch | sanitize }}"
+      DEFAULT_PATH_TEMPLATE = "{{ repo_path }}/../{{ repo }}.{{ branch | sanitize }}"
 
       def initialize(
         @worktree_path_template : String = DEFAULT_PATH_TEMPLATE,
