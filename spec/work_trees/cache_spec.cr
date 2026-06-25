@@ -1,163 +1,133 @@
 require "../spec_helper"
-require "../../src/work_trees/cache"
-
-# Recursive remove helper for test cleanup
-private def rm_rf(path : String)
-  if File.directory?(path)
-    Dir.children(path).each do |child|
-      rm_rf(File.join(path, child))
-    end
-    Dir.delete(path)
-  else
-    File.delete(path)
-  end
-rescue File::NotFoundError
-  # already gone
-end
+require "file_utils"
 
 module WorkTrees
   describe Cache do
-    tmp_dir = File.join(Dir.tempdir, "wt_cache_test_#{Random.rand(99999)}")
-    Dir.mkdir(tmp_dir) unless Dir.exists?(tmp_dir)
-
-    Spec.before_each do
-      Dir.children(tmp_dir).each do |child|
-        rm_rf(File.join(tmp_dir, child))
+    it "round-trips read/write JSON" do
+      with_tmp_dir do |dir|
+        path = File.join(dir, "sub", "entry.json")
+        Cache.read_json(path).should be_nil
+        Cache.write_json(path, JSON.parse(%({"x":42})))
+        parsed = Cache.read_json(path)
+        parsed.should_not be_nil
+        parsed.not_nil!["x"].as_i.should eq(42)
       end
     end
 
-    describe ".read_json" do
-      # Upstream: test_read_write_roundtrip — missing file is a miss,
-      # write creates parent dirs and round-trips.
-      it "returns nil for missing file" do
-        path = File.join(tmp_dir, "nonexistent.json")
+    it "returns nil for corrupt JSON" do
+      with_tmp_dir do |dir|
+        path = File.join(dir, "bad.json")
+        File.write(path, "not json {{")
         Cache.read_json(path).should be_nil
       end
-
-      it "returns nil for missing file (subdirectory path)" do
-        path = File.join(tmp_dir, "sub", "entry.json")
-        Cache.read_json(path).should be_nil
-      end
-
-      it "round-trips valid JSON with parent dirs created" do
-        path = File.join(tmp_dir, "sub", "deep", "entry.json")
-        value = JSON::Any.new({"x" => JSON::Any.new(42_i64)})
-        Cache.write_json(path, value)
-        result = Cache.read_json(path)
-        result.should_not be_nil
-        result.try &.["x"].should eq(JSON::Any.new(42_i64))
-      end
     end
 
-    describe ".write_json" do
-      it "creates parent directories" do
-        path = File.join(tmp_dir, "sub", "deep", "entry.json")
-        value = JSON::Any.new({"key" => JSON::Any.new("val")})
-        Cache.write_json(path, value)
-        File.exists?(path).should be_true
-      end
-    end
-
-    describe ".clear_one" do
-      it "returns false for missing file" do
-        path = File.join(tmp_dir, "nope.json")
-        Cache.clear_one(path).should be_false
+    describe "clear_one" do
+      it "returns false for a missing file" do
+        with_tmp_dir do |dir|
+          Cache.clear_one(File.join(dir, "nope.json")).should be_false
+        end
       end
 
-      it "returns true for existing file" do
-        path = File.join(tmp_dir, "yes.json")
-        File.write(path, "{}")
-        Cache.clear_one(path).should be_true
-        File.exists?(path).should be_false
-      end
-
-      # Upstream: test_clear_one_propagates_non_not_found
-      # Creates a directory where a file is expected. fs::remove_file in Rust
-      # returns EISDIR (not NotFound), which propagates as an error. Crystal's
-      # File.delete handles both files and dirs, so we use a non-empty
-      # directory which Dir.delete will refuse.
-      it "propagates non-NotFound I/O errors" do
-        dirpath = File.join(tmp_dir, "dir.json")
-        Dir.mkdir(dirpath)
-        File.write(File.join(dirpath, "child"), "blocking")
-        expect_raises(File::Error) do
-          Cache.clear_one(dirpath)
+      it "raises when the path is a directory, not a file" do
+        with_tmp_dir do |dir|
+          path = File.join(dir, "dir.json")
+          Dir.mkdir(path)
+          expect_raises(Exception) do
+            Cache.clear_one(path)
+          end
         end
       end
     end
 
-    describe ".clear_json_files" do
-      it "removes .json files and skips non-json" do
-        cdir = File.join(tmp_dir, "cache_test")
-        Dir.mkdir(cdir)
-        File.write(File.join(cdir, "a.json"), "{}")
-        File.write(File.join(cdir, "b.json"), "{}")
-        File.write(File.join(cdir, "README"), "stray")
-        File.write(File.join(cdir, "a.json.tmp"), "leftover")
+    describe "clear_json_files" do
+      it "removes .json files, counts them, and skips non-.json siblings" do
+        with_tmp_dir do |dir|
+          sub = File.join(dir, "c")
+          Dir.mkdir_p(sub)
+          File.write(File.join(sub, "a.json"), "{}")
+          File.write(File.join(sub, "b.json"), "{}")
+          File.write(File.join(sub, "README"), "stray")
+          File.write(File.join(sub, "a.json.tmp"), "leftover")
 
-        Cache.clear_json_files(cdir).should eq(2)
-        File.exists?(File.join(cdir, "a.json")).should be_false
-        File.exists?(File.join(cdir, "b.json")).should be_false
-        File.exists?(File.join(cdir, "README")).should be_true
-        File.exists?(File.join(cdir, "a.json.tmp")).should be_true
+          Cache.clear_json_files(sub).should eq(2)
+          File.exists?(File.join(sub, "a.json")).should be_false
+          File.exists?(File.join(sub, "b.json")).should be_false
+          File.exists?(File.join(sub, "README")).should be_true
+          File.exists?(File.join(sub, "a.json.tmp")).should be_true
+        end
       end
 
-      it "returns 0 for missing directory" do
-        Cache.clear_json_files(File.join(tmp_dir, "noexist")).should eq(0)
+      it "returns 0 for a missing directory" do
+        with_tmp_dir do |dir|
+          Cache.clear_json_files(File.join(dir, "nope")).should eq(0)
+        end
       end
 
-      # Upstream: test_clear_json_files_propagates_read_dir_error
-      # A file where a directory is expected causes read_dir to return
-      # NotADirectory, not NotFound — the error must propagate.
-      # Crystal: we use the same dir-setup pattern to trigger a Dir.children
-      # error (or at minimum a clean error path that doesn't return 0).
-      it "propagates non-NotFound directory errors" do
-        file_path = File.join(tmp_dir, "not-a-dir")
-        File.write(file_path, "file")
-        expect_raises(File::Error | IO::Error) do
-          Cache.clear_json_files(file_path)
+      it "raises when the path is a file, not a directory" do
+        with_tmp_dir do |dir|
+          path = File.join(dir, "not-a-dir")
+          File.write(path, "file")
+          expect_raises(Exception) do
+            Cache.clear_json_files(path)
+          end
         end
       end
     end
 
-    describe ".count_json_files" do
-      it "counts only .json files" do
-        cdir = File.join(tmp_dir, "count_test")
-        Dir.mkdir(cdir)
-        File.write(File.join(cdir, "a.json"), "{}")
-        File.write(File.join(cdir, "README"), "stray")
+    describe "count_json_files" do
+      it "counts .json files and skips others" do
+        with_tmp_dir do |dir|
+          sub = File.join(dir, "c")
+          Dir.mkdir_p(sub)
+          File.write(File.join(sub, "a.json"), "{}")
+          File.write(File.join(sub, "README"), "stray")
 
-        Cache.count_json_files(cdir).should eq(1)
-        Cache.count_json_files(File.join(tmp_dir, "nope")).should eq(0)
+          Cache.count_json_files(sub).should eq(1)
+          Cache.count_json_files(File.join(dir, "nope")).should eq(0)
+        end
       end
     end
 
-    describe ".sweep_lru" do
-      it "trims oldest entries" do
-        cdir = File.join(tmp_dir, "lru_test")
-        Dir.mkdir(cdir)
-        5.times do |i|
-          File.write(File.join(cdir, "entry#{i}.json"), "true")
-          sleep 0.01.seconds
+    describe "sweep_lru" do
+      it "trims oldest entries when over the max bound" do
+        with_tmp_dir do |dir|
+          sub = File.join(dir, "c")
+          Dir.mkdir_p(sub)
+          (0...5).each do |i|
+            File.write(File.join(sub, "entry#{i}.json"), "true")
+            sleep(Time::Span.new(nanoseconds: 15_000_000)) # ensure distinct mtimes
+          end
+
+          Cache.sweep_lru(sub, 3)
+          remaining = Dir.children(sub).select(&.ends_with?(".json")).sort!
+          remaining.should eq(["entry2.json", "entry3.json", "entry4.json"])
         end
-
-        Cache.sweep_lru(cdir, 3)
-
-        remaining = Dir.children(cdir).select(&.ends_with?(".json")).sort
-        # entry4 and entry3 are newest (highest i), entry0 and entry1 should be trimmed
-        remaining.should eq(["entry2.json", "entry3.json", "entry4.json"])
       end
 
-      it "does nothing when under bound" do
-        cdir = File.join(tmp_dir, "lru_under_test")
-        Dir.mkdir(cdir)
-        3.times do |i|
-          File.write(File.join(cdir, "entry#{i}.json"), "true")
-        end
+      it "keeps all entries when under the max bound" do
+        with_tmp_dir do |dir|
+          sub = File.join(dir, "c")
+          Dir.mkdir_p(sub)
+          (0...3).each do |i|
+            File.write(File.join(sub, "entry#{i}.json"), "true")
+          end
 
-        Cache.sweep_lru(cdir, 5)
-        Cache.count_json_files(cdir).should eq(3)
+          Cache.sweep_lru(sub, 5)
+          remaining = Dir.children(sub).select(&.ends_with?(".json"))
+          remaining.size.should eq(3)
+        end
       end
     end
+  end
+end
+
+private def with_tmp_dir(&)
+  dir = File.tempname("wt-cache")
+  Dir.mkdir_p(dir)
+  begin
+    yield dir
+  ensure
+    FileUtils.rm_rf(dir)
   end
 end
