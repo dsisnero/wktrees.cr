@@ -81,7 +81,7 @@ module WorkTrees
     private def self.rotate_if_needed(path : String) : Nil
       return unless File.exists?(path)
       if File.size(path) > MAX_LOG_SIZE
-        old_path = path.sub(".jsonl", ".jsonl.old")
+        old_path = path.gsub(/(\.jsonl)$/, ".jsonl.old")
         begin
           File.rename(path, old_path)
         rescue
