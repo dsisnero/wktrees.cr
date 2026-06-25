@@ -1869,7 +1869,11 @@ module WorkTrees
     private def self.config_show
       config_path = Config.default_config_path
       if File.exists?(config_path)
-        puts File.read(config_path)
+        content = File.read(config_path)
+        puts content
+        if Config::Deprecation.find_post_create_deprecation(content)
+          STDERR.puts Config::Deprecation.post_create_message("User config")
+        end
       else
         puts "# No config file found at #{config_path}"
         config = Config::UserConfig.new
@@ -1995,7 +1999,11 @@ module WorkTrees
       repo = Git::Repository.current
       project_path = Config.project_config_path(repo.discovery_path)
       if File.exists?(project_path)
-        puts File.read(project_path)
+        content = File.read(project_path)
+        puts content
+        if Config::Deprecation.find_post_create_deprecation(content)
+          STDERR.puts Config::Deprecation.post_create_message("Project config")
+        end
       else
         puts "No project config at #{project_path}"
         puts "Create with: wktrees config create --project"
@@ -2429,10 +2437,17 @@ module WorkTrees
 
     private def self.step_copy_ignored(args : Array(String))
       source : String? = nil
+      dest : String? = nil
+      force = false
+      dry_run = false
 
       OptionParser.parse(args) do |parser|
-        parser.banner = "Usage: wktrees step copy-ignored [--source BRANCH]"
-        parser.on("--source=BRANCH", "Source branch (default: default branch)") { |src| source = src }
+        parser.banner = "Usage: wktrees step copy-ignored [options]"
+        parser.on("--from=BRANCH", "Source branch (default: default branch)") { |b| source = b }
+        parser.on("--source=BRANCH", "Alias for --from") { |b| source = b }
+        parser.on("--to=BRANCH", "Destination branch (default: current worktree)") { |b| dest = b }
+        parser.on("-f", "--force", "Overwrite existing files") { force = true }
+        parser.on("--dry-run", "Show what would be copied without copying") { dry_run = true }
         parser.on("-h", "--help", "Show this help") do
           puts parser
           exit 0
@@ -2440,34 +2455,73 @@ module WorkTrees
       end
 
       repo = Git::Repository.current
-      current_path = repo.current_worktree.path
-      current_branch = repo.current_worktree.current_branch
 
-      source_branch = if s = source
-                        s
-                      else
-                        repo.default_branch
-                      end
+      source_branch = source || repo.default_branch
+      source_path = resolve_worktree_path(repo, source_branch)
+      dest_path = dest ? resolve_worktree_path(repo, dest) : File.expand_path(repo.current_worktree.path)
 
-      source_path = repo.worktree_for_branch(source_branch)
-      unless source_path
-        STDERR.puts "Error: No worktree for #{source_branch}"
-        exit 1
+      if source_path == dest_path
+        STDERR.puts "Source and destination are the same worktree"
+        return
       end
 
-      puts "◎ Copying gitignored files from #{source_branch} → #{current_branch}..."
+      # Resolve copy-ignored config: built-in defaults + project + user
+      user_toml = File.exists?(Config.default_config_path) ? File.read(Config.default_config_path) : ""
+      project_toml = File.exists?(Config.project_config_path(repo.discovery_path)) ? File.read(Config.project_config_path(repo.discovery_path)) : ""
+      user_step = Config.parse_step_config(user_toml)
+      project_step = Config.parse_step_config(project_toml)
+      config = CopyIgnored.resolve(user_step, project_step)
 
-      # Use rsync to copy gitignored files (respects .gitignore)
-      # --exclude='.git' --filter=':- .gitignore'
-      result = Cmd.new("rsync")
-        .args(["-a", "--filter=:- .gitignore", "--exclude=.git", "#{source_path}/", "#{current_path}/"])
-        .run
+      # Worktree paths for nested-worktree exclusion
+      worktree_paths = repo.list_worktrees.map { |worktree| File.expand_path(worktree.path) }
 
-      if result.success?
-        puts "✓ Copied gitignored files from #{source_branch}"
+      # .worktreeinclude (mirrors upstream: patterns are gitignore-style include rules)
+      include_patterns = read_worktreeinclude(source_path)
+
+      # Discover and filter ignored entries
+      entries = CopyIgnored.list_ignored_entries(source_path)
+      entries = CopyIgnored.filter_entries(entries, source_path, worktree_paths, config.exclude, include_patterns)
+
+      if entries.empty?
+        puts "No matching files to copy"
+        return
+      end
+
+      if dry_run
+        puts "Would copy #{entries.size} #{entries.size == 1 ? "entry" : "entries"}:"
+        entries.each { |(rel, is_dir)| puts "  #{rel}#{is_dir ? "/" : ""}" }
+        return
+      end
+
+      copied = 0
+      entries.each do |(rel, _is_dir)|
+        copied += CopyIgnored.copy_path(
+          File.join(source_path, rel),
+          File.join(dest_path, rel),
+          force: force,
+        )
+      end
+
+      puts "✓ Copied #{copied} #{copied == 1 ? "file" : "files"} from #{source_branch}"
+    end
+
+    private def self.resolve_worktree_path(repo, branch : String) : String
+      path = repo.worktree_for_branch(branch)
+      unless path
+        STDERR.puts "Error: No worktree for #{branch}"
+        exit 1
+      end
+      File.expand_path(path)
+    end
+
+    private def self.read_worktreeinclude(worktree_path : String) : Array(String)
+      include_path = File.join(worktree_path, ".worktreeinclude")
+      if File.exists?(include_path)
+        File.read_lines(include_path).map(&.strip).reject do |line|
+          line.empty? || line.starts_with?('#') || line.starts_with?('!')
+        end
       else
-        STDERR.puts "! rsync failed (rsync may not be installed)"
-        STDERR.puts "  #{result.stderr.lines.first?}"
+        [] of String
       end
     end
 

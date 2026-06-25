@@ -232,5 +232,54 @@ module WorkTrees
         end
       end
     end
+
+    # Configuration for `wt step copy-ignored`.
+    # Ported from vendor/worktrunk/src/config/user/sections.rs CopyIgnoredConfig.
+    struct CopyIgnoredConfig
+      # Gitignore-style patterns to exclude from `wt step copy-ignored`.
+      property exclude : Array(String)
+
+      def initialize(@exclude : Array(String) = [] of String)
+      end
+
+      # Append other's excludes, de-duplicating (self's order preserved first).
+      def merged_with(other : CopyIgnoredConfig) : CopyIgnoredConfig
+        exclude = @exclude.dup
+        other.exclude.each do |pattern|
+          exclude << pattern unless exclude.includes?(pattern)
+        end
+        CopyIgnoredConfig.new(exclude)
+      end
+
+      def merge_with(other : CopyIgnoredConfig) : CopyIgnoredConfig
+        merged_with(other)
+      end
+    end
+
+    # Configuration for `wt step` subcommands.
+    # Ported from vendor/worktrunk/src/config/user/sections.rs StepConfig.
+    struct StepConfig
+      @copy_ignored : CopyIgnoredConfig?
+
+      def initialize(@copy_ignored : CopyIgnoredConfig? = nil)
+      end
+
+      # Resolved copy-ignored config, defaulting to empty if unset.
+      def copy_ignored : CopyIgnoredConfig
+        @copy_ignored || CopyIgnoredConfig.new
+      end
+
+      # Raw (possibly unset) copy-ignored config.
+      def copy_ignored? : CopyIgnoredConfig?
+        @copy_ignored
+      end
+
+      def merge_with(other : StepConfig) : StepConfig
+        s = @copy_ignored
+        o = other.@copy_ignored
+        merged = (s && o) ? s.merge_with(o) : (s || o)
+        StepConfig.new(copy_ignored: merged)
+      end
+    end
   end
 end

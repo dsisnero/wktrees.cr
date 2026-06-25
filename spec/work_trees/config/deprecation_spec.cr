@@ -124,6 +124,85 @@ module WorkTrees
         deps.has_any?.should be_true
         deps.legacy_approved_commands?.should be_true
       end
+
+      it "includes post-create deprecation" do
+        content = <<-TOML
+        post-create = "npm install"
+        TOML
+        deps = Config::Deprecation.detect_deprecations(content)
+        deps.post_create?.should be_true
+        deps.has_any?.should be_true
+      end
+    end
+
+    describe "POST_CREATE_REMOVED_MSG" do
+      it "names the replacement key and version" do
+        msg = Config::Deprecation::POST_CREATE_REMOVED_MSG
+        msg.should contain("post-create")
+        msg.should contain("pre-start")
+        msg.should contain("v0.32.0")
+      end
+    end
+
+    describe "find_post_create_deprecation" do
+      it "returns false when only pre-start is present" do
+        content = <<-TOML
+        pre-start = "npm install"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_false
+      end
+
+      it "flags a top-level post-create string" do
+        content = <<-TOML
+        post-create = "npm install"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_true
+      end
+
+      it "flags a project-level post-create" do
+        content = <<-TOML
+        [projects."my-project"]
+        post-create = "npm install"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_true
+      end
+
+      it "flags a named-command post-create table" do
+        content = <<-TOML
+        [post-create]
+        lint = "npm run lint"
+        build = "npm run build"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_true
+      end
+
+      it "does not flag an empty post-create table" do
+        content = <<-TOML
+        [post-create]
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_false
+      end
+
+      it "does not flag when pre-start exists at top level" do
+        content = <<-TOML
+        post-create = "old"
+        pre-start = "new"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_false
+      end
+
+      it "does not flag when pre-start exists in project hooks" do
+        content = <<-TOML
+        [projects."my-project"]
+        post-create = "old"
+        pre-start = "new"
+        TOML
+        Config::Deprecation.find_post_create_deprecation(content).should be_false
+      end
+
+      it "returns false for unparsable content" do
+        Config::Deprecation.find_post_create_deprecation("not = = valid toml").should be_false
+      end
     end
 
     describe "migrate_content" do

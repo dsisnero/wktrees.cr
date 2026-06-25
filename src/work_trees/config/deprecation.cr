@@ -9,6 +9,8 @@
 #
 # Detection is in-memory only. Migration writes happen via `wt config update`.
 
+require "toml"
+
 module WorkTrees
   module Config
     module Deprecation
@@ -39,21 +41,38 @@ module WorkTrees
         },
       ]
 
+      # Error message emitted when a config contains the removed `post-create`
+      # hook key. Mirrors vendor/worktrunk/src/config/deprecation.rs
+      # (POST_CREATE_REMOVED_MSG).
+      POST_CREATE_REMOVED_MSG = "`post-create` hook was renamed to `pre-start` in v0.32.0 and the silent rewrite has been removed. Rename `post-create` to `pre-start` in your config."
+
+      # Labeled message for a removed `post-create` key, e.g.
+      # "User config: `post-create` hook was renamed ...". The label is
+      # "User config" or "Project config", matching upstream's
+      # check_and_migrate error/`config show` rendering.
+      def self.post_create_message(label : String) : String
+        "#{label}: #{POST_CREATE_REMOVED_MSG}"
+      end
+
       # Results of scanning content for deprecations.
       struct Deprecations
         property deprecated_sections : Array(String)
         property replaced_vars : Array({String, String})
         property? legacy_approved_commands : Bool
+        # Has `[post-create]` (renamed to `[pre-start]`) without a sibling `pre-start`.
+        property? post_create : Bool
 
         def initialize(
           @deprecated_sections = [] of String,
           @replaced_vars = [] of {String, String},
           @legacy_approved_commands = false,
+          @post_create = false,
         )
         end
 
         def has_any? : Bool
-          !@deprecated_sections.empty? || !@replaced_vars.empty? || @legacy_approved_commands
+          !@deprecated_sections.empty? || !@replaced_vars.empty? ||
+            @legacy_approved_commands || @post_create
         end
       end
 
@@ -91,7 +110,57 @@ module WorkTrees
           deps.legacy_approved_commands = true
         end
 
+        # Check for removed `post-create` hook key
+        deps.post_create = find_post_create_deprecation(content)
+
         deps
+      end
+
+      # Detect a removed `post-create` hook key that needs renaming to `pre-start`.
+      #
+      # Mirrors vendor/worktrunk/src/config/deprecation.rs `find_post_create_from_doc`:
+      # flagged when `pre-start` is absent and a non-empty `post-create` is present,
+      # either at the top level (project config / flattened user config) or inside any
+      # `[projects."id"]` table (user config per-project overrides). An empty
+      # `[post-create]` table is a no-op and is not flagged.
+      def self.find_post_create_deprecation(content : String) : Bool
+        data = begin
+          TOML.parse(content)
+        rescue TOML::ParseException
+          return false
+        end
+
+        # Top-level (project config, or flattened user config)
+        if data["pre-start"]?.nil? && non_empty_item?(data["post-create"]?.try(&.raw))
+          return true
+        end
+
+        # Per-project overrides (user config): hooks flattened into [projects."id"]
+        projects = data["projects"]?.try(&.raw)
+        if projects.is_a?(Hash)
+          projects.each_value do |project_value|
+            inner = project_value.raw
+            next unless inner.is_a?(Hash)
+            next if inner.has_key?("pre-start")
+            return true if non_empty_item?(inner["post-create"]?.try(&.raw))
+          end
+        end
+
+        false
+      end
+
+      # Whether a parsed TOML value counts as a non-empty hook entry.
+      # Tables/inline-tables must have entries; strings and other scalars are
+      # always "non-empty"; absence (nil) is empty.
+      private def self.non_empty_item?(value) : Bool
+        case value
+        when Nil
+          false
+        when Hash
+          !value.empty?
+        else
+          true
+        end
       end
 
       # Apply structural TOML migrations to config content.

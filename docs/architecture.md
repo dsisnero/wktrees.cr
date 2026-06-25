@@ -9,7 +9,7 @@ src/
 ├── cli.cr                  # Binary entry point
 ├── work_trees.cr           # Module root + requires
 └── work_trees/
-    ├── cli.cr              # CLI dispatch + all commands (~2750 LOC)
+    ├── cli.cr              # CLI dispatch + all commands (~2900 LOC)
     ├── cmd.cr              # External command execution (Cmd builder)
     ├── cache.cr            # JSON cache primitives (read/write/LRU)
     ├── sync.cr             # Semaphore via Channel
@@ -23,12 +23,13 @@ src/
     ├── template_vars.cr     # Hook variable builder
     ├── picker.cr            # Bubbletea TUI picker
     ├── ci_status.cr         # Multi-platform CI status
+    ├── copy_ignored.cr      # Copy-ignored: discovery, filter, copy
     ├── config/
-    │   ├── config.cr        # UserConfig + ProjectConfig + merge
+    │   ├── config.cr        # UserConfig + ProjectConfig + merge + parse_step_config
     │   ├── hook.cr          # Hook parsing + HookSource/ParsedFilter
-    │   ├── sections.cr      # Config section structs (5 types)
+    │   ├── sections.cr      # Config section structs (7 types)
     │   ├── approvals.cr     # TOML-based command approval
-    │   └── deprecation.cr   # Detection + migration
+    │   └── deprecation.cr   # Detection + migration + post-create error message
     ├── git/
     │   ├── error.cr         # 35 GitError types
     │   ├── repository.cr    # Repository + WorkingTree
@@ -81,7 +82,10 @@ src/
 | D6 | Preview Protocol | Tea messages via fibers instead of temp-file state and skim heartbeat |
 | D7 | Items/List | `Bubbles::List::DefaultItem` instead of `SkimItem` trait |
 | D8 | Preview Cache | SHA-256-keyed JSON files instead of Rust DashMap/disk cache |
+| D9 | Copy-ignored perf | Plain recursive copy; no COW/reflink, thread pool, TTY spinner, or priority lowering |
+| D10 | Hooks model | Flat `Hash(name→command)` per section; upstream's ordered `CommandConfig` append/duplicate semantics simplified; post-create→pre-start fold with pre-start-wins collision
 
 ## Implementation Notes
 
+- **2026-06-24**: Copy-ignored behavioral parity (discovery + filter + copy pipeline, `CopyIgnoredConfig`/`StepConfig` parsing, `.worktreeinclude` support). Post-create deprecation parity (detection, fatal project, warn user, config-show rendering, fold-into-pre-start). 892 specs total. See CHANGELOG 0.3.0.
 - **2026-06-05**: Binary renamed to `wktrees` (D5). Interactive picker uses bubbletea TUI with Bubbles::List + Viewport (D4). PreviewCache uses SHA-256 for content-addressed disk cache (D8). 837 specs, 0 failures.

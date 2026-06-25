@@ -15,6 +15,7 @@ wktrees list --format=json       # machine-readable JSON
 wktrees remove <branch>          # cleanup worktrees
 wktrees merge                    # commit, squash, rebase, FF merge
 wktrees step commit              # conventional commit with LLM
+wktrees step copy-ignored        # copy gitignored files between worktrees
 wktrees step for-each 'cmd'      # run command on every worktree
 wktrees config show              # view configuration
 wktrees config show --full       # resolved config with defaults
@@ -30,6 +31,7 @@ wktrees hook run <type>          # manually trigger hooks
 - **Interactive Picker**: Bubbletea TUI with 5 preview modes (diff, log, summary)
 - **10 Hook Types**: pre/post-start, pre/post-switch, pre/post-commit, pre/post-merge, pre/post-remove
 - **LLM Integration**: Commit messages via Claude/Codex/LLM, branch summaries
+- **Copy-Ignored**: Share gitignored files (build caches, `.env`, `node_modules/`) between worktrees via `wktrees step copy-ignored` with `.worktreeinclude` filtering, `[step.copy-ignored]` exclude config, and built-in VCS/tool-dir exclusions
 - **CI Status**: GitHub Actions, GitLab CI, Azure Pipelines, Gitea (auto-detected)
 - **Config System**: User + project TOML with env var overrides and deprecation migration
 - **Plugin System**: Custom subcommands via `wktrees-<name>` on PATH or `.work_trees/bin/`
@@ -69,11 +71,11 @@ make update        # update dependencies (shards update)
 make build         # compile binary → bin/wktrees
 make format        # format code
 make lint          # lint code (ameba)
-make test          # run specs (675 examples)
+make test          # run specs (892 examples)
 make clean         # remove build artifacts
 ```
 
-Tests: 675 specs, 0 failures. Requires Crystal >= 1.20.2.
+Tests: 892 specs, 0 failures. Requires Crystal >= 1.20.2.
 
 ### Dependencies
 

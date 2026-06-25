@@ -2,9 +2,16 @@
 # Ported from vendor/worktrunk/src/config/
 
 require "toml"
+require "./deprecation"
 
 module WorkTrees
   module Config
+    # Raised when a config file contains a removed key that must be renamed
+    # (e.g. `post-create` → `pre-start`). Fatal for project config; user
+    # config catches it and continues with defaults.
+    class DeprecatedConfigError < Exception
+    end
+
     # User-level configuration (~/.config/worktrees/config.toml).
     class UserConfig
       property worktree_path_template : String
@@ -86,9 +93,17 @@ module WorkTrees
     end
 
     # Load user config from disk, falling back to defaults.
-    def self.load_user(path : String) : UserConfig
+    #
+    # A removed `post-create` key is non-fatal for user config: emit a warning
+    # to `warn_io` and continue with defaults (skip the file), matching
+    # upstream's best-effort user-config load.
+    def self.load_user(path : String, warn_io : IO = STDERR) : UserConfig
       if File.exists?(path)
         content = File.read(path)
+        if Deprecation.find_post_create_deprecation(content)
+          warn_io.puts Deprecation.post_create_message("User config")
+          return UserConfig.new
+        end
         parse_user(content)
       else
         UserConfig.new
@@ -180,6 +195,21 @@ module WorkTrees
       end
     end
 
+    # Fold deprecated [post-create] commands into [pre-start] so they aren't
+    # silently dropped when pre-start also exists. Pre-start entries come
+    # first. On a name collision, pre-start wins (the flat name→command model
+    # can't represent duplicate-named commands; documented divergence from
+    # upstream append semantics).
+    private def self.fold_post_create_into_pre_start(config : ProjectConfig, toml_str : String)
+      post_create_hooks = parse_hooks(toml_str, "post-create").flat_map(&.hooks)
+      return if post_create_hooks.empty?
+      pre_start = config.hooks["pre-start"]? || {} of String => String
+      post_create_hooks.each do |hook|
+        pre_start[hook.name] = hook.command unless pre_start.has_key?(hook.name)
+      end
+      config.hooks["pre-start"] = pre_start
+    end
+
     # Default config file path.
     def self.default_config_path : String
       home = Path.home.to_s
@@ -210,6 +240,11 @@ module WorkTrees
 
     # Parse project config TOML.
     def self.parse_project(toml_str : String) : ProjectConfig
+      # A removed `post-create` key is fatal for project config.
+      if Deprecation.find_post_create_deprecation(toml_str)
+        raise DeprecatedConfigError.new(Deprecation.post_create_message("Project config"))
+      end
+
       data = TOML.parse(toml_str)
       config = ProjectConfig.new
 
@@ -239,6 +274,8 @@ module WorkTrees
           config.hooks[section] = flat_hooks.map { |hook| {hook.name, hook.command} }.to_h
         end
       end
+
+      fold_post_create_into_pre_start(config, toml_str)
 
       # Parse section configs
       parse_list_section(data, config)
@@ -338,6 +375,31 @@ module WorkTrees
         end
       end
       aliases
+    end
+
+    # Parse `[step.copy-ignored] exclude = [...]` from a TOML string.
+    #
+    # Returns a StepConfig with parsed excludes, or empty if the section
+    # is absent, unparsable, or malformed.
+    def self.parse_step_config(toml_str : String) : StepConfig
+      data = TOML.parse(toml_str) rescue return StepConfig.new
+      step = data["step"]?.try(&.raw)
+      return StepConfig.new unless step.is_a?(Hash)
+
+      ci_raw = step["copy-ignored"]?
+      ci_raw = ci_raw.raw if ci_raw.is_a?(TOML::Any)
+      return StepConfig.new unless ci_raw.is_a?(Hash)
+
+      excl = ci_raw["exclude"]?
+      excl = excl.raw if excl.is_a?(TOML::Any)
+      return StepConfig.new unless excl.is_a?(Array)
+
+      patterns = excl.compact_map do |item|
+        val = item.is_a?(TOML::Any) ? item.raw : item
+        val.to_s unless val.to_s.empty?
+      end
+
+      StepConfig.new(copy_ignored: CopyIgnoredConfig.new(exclude: patterns))
     end
   end
 end

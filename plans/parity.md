@@ -99,6 +99,7 @@
 
 ### 2.2 `wktrees step` ✅
 - [x] 12 subcommands: commit, diff, squash, rebase, push, for-each, eval, prune, copy-ignored, promote, relocate, tether, statusline
+- [x] `copy-ignored`: behavioral parity (git-ls-files discovery, `.worktreeinclude` filtering, built-in + configured excludes, nested-worktree guard, `--force`/`--from`/`--to`/`--dry-run`, symlink preservation); perf divergences documented (D6)
 
 ### 2.3 `wktrees hook` ✅
 - [x] hook show — display configured hooks (user + project)
@@ -112,6 +113,7 @@
 - [x] config state vars (set/get/list/clear)
 - [x] [aliases] parsed and dispatched
 - [x] config shell {install,uninstall}, shell completions
+- [x] `post-create` deprecation: detection (8 tests), fatal on project config, warn+skip on user config, config-show inline rendering, fold into pre-start when both present
 - [x] config show --full (resolved config with defaults)
 - [x] config update (deprecation migration)
 - [x] config approvals (persistence, legacy fallback, batch, atomic saves)
@@ -206,6 +208,8 @@ alt-c create, alt-r remove, persistent SHA-keyed disk cache (PreviewCache module
 | D3 | Concurrency | Crystal fibers + WaitGroup instead of rayon thread pool |
 | D4 | TUI Picker | Integrated bubbletea TUI with Bubbles::List instead of shelling out to fzf/skim |
 | D5 | CLI Name | Binary renamed to `wktrees` (shorter to type); module namespace is `WorkTrees` |
+| D6 | Copy-ignored perf | Plain recursive copy; no COW/reflink, thread pool, TTY spinner, or priority lowering |
+| D7 | Project hooks model | Flat `Hash(name→command)` per section; no ordered append/duplicate-name support; upstream's `HooksConfig` fold semantics simplified: post-create folds into pre-start, pre-start wins on collision |
 
 ---
 
@@ -230,3 +234,5 @@ These require major infrastructure, external tools, or are intentionally skipped
 - **2026-05-18**: Struct → Class for WorktreeInfo (needed reference semantics).
 - **2026-05-18**: `OptionParser.unknown_args` puts branch names in `before` (not `after`).
 - **2026-05-29**: 801 specs (+126 since 2026-05-25).
+- **2026-06-24**: Post-create deprecation parity: `find_post_create_deprecation` detection (8 upstream tests ported), fatal project-config rejection, user-config warning+skip, config-show inline rendering, and [post-create]→[pre-start] fold when both present (3 additional specs). Upstream: v0.51.0 deprecation.rs + hooks.rs merge.
+- **2026-06-24**: Copy-ignored behavioral parity: `CopyIgnoredConfig`/`StepConfig` with `merged_with` dedup-append (6 specs), `resolve` with built-in→project→user ordering, `parse_step_config` config parsing (4 specs), git-ls-files discovery + `.worktreeinclude` filtering + built-in-exclude + nested-worktree guards + configured exclude matching (simplified gitignore matcher), recursive copy with `--force`/symlink preservation (5 specs + 1 live-git integration spec). Perf machinery (COW/reflink, thread pool, TTY spinner, priority lowering) documented as D6.

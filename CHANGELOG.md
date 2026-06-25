@@ -2,6 +2,84 @@
 
 All notable changes to the Crystal port of Worktrunk will be documented here.
 
+## [0.3.0] — 2026-06-24
+
+### Post-Create Deprecation Parity (v0.51.0)
+
+The removed `post-create` hook key (renamed to `pre-start` in worktrunk v0.32.0)
+is now detected and handled faithfully:
+
+- **Fatal on project config**: `.config/wt.toml` with `post-create` (and no
+  sibling `pre-start`) raises a `DeprecatedConfigError` naming the replacement
+  key. Mirror of `check_and_migrate` / `test_post_create_in_project_config_is_fatal`.
+- **Warn + skip on user config**: User config with `post-create` emits a warning
+  and continues with defaults (best-effort load). Mirror of
+  `test_post_create_in_user_config_warns_and_skips`.
+- **Config show rendering**: `wktrees config show` and `config show --project`
+  render the deprecation inline with the ``User config: `post-create` `` prefix.
+  Mirror of `test_config_show_renders_post_create_error`.
+- **Detection**: `find_post_create_deprecation` (8 upstream unit tests ported)
+  flags top-level or per-project `post-create` without adjacent `pre-start`;
+  empty tables are not flagged.
+- **Fold when both present**: When `[pre-start]` and `[post-create]` coexist in
+  project config, post-create commands are folded into pre-start (pre-start
+  entries first, collision-safe). Upstream `HooksConfig::merge_with` analog,
+  simplified for the flat-hash project-hook model (D7).
+
+### Copy-Ignored Behavioral Parity (v0.51.0)
+
+`wktrees step copy-ignored` is rewritten from a not-entirely-correct
+rsync-based path to upstream's pipeline:
+
+- **Discovery**: `git ls-files --ignored --exclude-standard -o --directory`
+  resolves all gitignore sources (global, .gitignore, .git/info/exclude,
+  nested). Previously used rsync `--filter=:- .gitignore` which excluded
+  gitignored files instead of copying them.
+- **Config**: `Config::CopyIgnoredConfig` with `exclude` patterns and dedup-append
+  `merged_with`; `Config::StepConfig` wire-up; `parse_step_config` reads
+  `[step.copy-ignored]` from user + project TOML. Merge order: built-in
+  defaults → project → user (mirrors `resolve_copy_ignored_config`).
+- **Filter pipeline**: `.worktreeinclude` match → configured exclude patterns
+  (simplified gitignore matcher: anchored, directory-only, glob, negation) →
+  built-in VCS/tool dirs (`.bzr/`, `.conductor/`, `.entire/`, `.hg/`, `.jj/`,
+  `.pijul/`, `.sl/`, `.svn/`, `.worktrees/`) → nested worktree exclusion.
+- **Copy**: Recursive file/directory copy with `--force` (skip-existing unless
+  forced), symlink preservation, `--dry-run` listing, same-worktree no-op.
+- **CLI flags**: `--from`/`--source`, `--to`, `--force`, `--dry-run`.
+- **Divergences documented (D6)**: Plain recursive copy; no COW/reflink,
+  thread pool, TTY spinner, or priority lowering.
+
+### New Module
+
+| Module | File | Source |
+|--------|------|--------|
+| CopyIgnored | `src/work_trees/copy_ignored.cr` | `vendor/worktrunk/src/commands/step/copy_ignored.rs` + `shared.rs` |
+
+### New Config Structs
+
+| Struct | File | Source |
+|--------|------|--------|
+| `CopyIgnoredConfig` | `src/work_trees/config/sections.cr` | `vendor/worktrunk/src/config/user/sections.rs` |
+| `StepConfig` | `src/work_trees/config/sections.cr` | `vendor/worktrunk/src/config/user/sections.rs` |
+| `DeprecatedConfigError` | `src/work_trees/config/config.cr` | `vendor/worktrunk/src/config/deprecation.rs` |
+
+### Divergences Updated
+
+- **D6**: Copy-ignored perf — plain recursive copy; no COW/reflink, thread
+  pool, TTY spinner, or I/O priority lowering.
+- **D7**: Project hooks model — flat `Hash(name→command)` per section; no
+  ordered append/duplicate-name support. Post-create fold simplifies upstream's
+  `HooksConfig` merge (pre-start wins on collision).
+
+### Specs
+
+892 specs (+55 since 0.2.0), 0 failures. The 55 new specs cover:
+- 13 post-create deprecation specs (detection, fatal, warn, fold, message)
+- 21 copy-ignored specs (config merge, pattern matching, filter, copy, live-git integration)
+- 21 config section specs (CopyIgnoredConfig, StepConfig, parse_step_config)
+
+---
+
 ## [0.2.0] — 2026-05-25
 
 ### Binary Rename — `work_trees` → `wktrees`

@@ -180,4 +180,46 @@ module WorkTrees::Config
       merged.cd?.should be_false
     end
   end
+
+  describe CopyIgnoredConfig do
+    # Mirrors vendor/worktrunk/src/config/user/sections.rs CopyIgnoredConfig.
+    it "defaults to an empty exclude list" do
+      cfg = CopyIgnoredConfig.new
+      cfg.exclude.should be_empty
+    end
+
+    it "merges excludes by appending and de-duplicating" do
+      base = CopyIgnoredConfig.new(exclude: ["a/", "b/"])
+      other = CopyIgnoredConfig.new(exclude: ["b/", "c/"])
+      merged = base.merged_with(other)
+      merged.exclude.should eq(["a/", "b/", "c/"])
+    end
+
+    it "merge_with delegates to merged_with" do
+      base = CopyIgnoredConfig.new(exclude: ["x"])
+      other = CopyIgnoredConfig.new(exclude: ["y"])
+      base.merge_with(other).exclude.should eq(["x", "y"])
+    end
+  end
+
+  describe StepConfig do
+    it "returns an empty copy-ignored config when unset" do
+      cfg = StepConfig.new
+      cfg.copy_ignored.exclude.should be_empty
+    end
+
+    it "merges copy-ignored from both sides" do
+      user = StepConfig.new(copy_ignored: CopyIgnoredConfig.new(exclude: ["a"]))
+      project = StepConfig.new(copy_ignored: CopyIgnoredConfig.new(exclude: ["b"]))
+      merged = user.merge_with(project)
+      merged.copy_ignored.exclude.should eq(["a", "b"])
+    end
+
+    it "uses the present side when only one is set" do
+      user = StepConfig.new
+      project = StepConfig.new(copy_ignored: CopyIgnoredConfig.new(exclude: ["b"]))
+      merged = user.merge_with(project)
+      merged.copy_ignored.exclude.should eq(["b"])
+    end
+  end
 end
