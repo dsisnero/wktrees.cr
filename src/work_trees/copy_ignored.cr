@@ -182,5 +182,79 @@ module WorkTrees
     private def self.should_replace?(dest : String, force : Bool) : Bool
       force || (!File.exists?(dest) && !File.symlink?(dest))
     end
+
+    # Copy a file, directory, or symlink from `src` to `dest`, then delete src.
+    # Uses `File.rename`; falls back to copy+delete on cross-device moves.
+    # Mirrors vendor/worktrunk/src/commands/step/promote.rs `move_entry`.
+    def self.move_entry(src : String, dest : String, *, is_dir : Bool)
+      Dir.mkdir_p(File.dirname(dest)) unless File.directory?(dest)
+      begin
+        File.rename(src, dest)
+      rescue File::Error
+        if is_dir
+          copy_path(src, dest, force: true)
+          FileUtils.rm_rf(src)
+        else
+          copy_path(src, dest, force: true)
+          File.delete(src)
+        end
+      end
+    end
+
+    # Move gitignored entries from `path_a` and `path_b` into staging
+    # subdirectories `staging_dir/a/` and `staging_dir/b/` to protect them
+    # from `git checkout` during a branch exchange.
+    #
+    # Mirrors vendor/worktrunk/src/commands/step/promote.rs `stage_ignored`.
+    def self.stage_ignored(
+      path_a : String, entries_a : Array({String, Bool}),
+      path_b : String, entries_b : Array({String, Bool}),
+      staging_dir : String,
+    )
+      Dir.mkdir_p(staging_dir)
+      staging_a = File.join(staging_dir, "a")
+      staging_b = File.join(staging_dir, "b")
+
+      entries_a.each do |(relative, is_dir)|
+        src = File.join(path_a, relative)
+        dst = File.join(staging_a, relative)
+        move_entry(src, dst, is_dir: is_dir) if File.exists?(src) || File.symlink?(src)
+      end
+
+      entries_b.each do |(relative, is_dir)|
+        src = File.join(path_b, relative)
+        dst = File.join(staging_b, relative)
+        move_entry(src, dst, is_dir: is_dir) if File.exists?(src) || File.symlink?(src)
+      end
+    end
+
+    # Distribute staged entries back to worktrees after a branch exchange.
+    # B's original entries (in staging/b/) go to A's worktree (now on B's branch),
+    # and A's original entries (in staging/a/) go to B's worktree (now on A's branch).
+    # Removes the staging directory on completion (best-effort).
+    #
+    # Mirrors vendor/worktrunk/src/commands/step/promote.rs `distribute_staged`.
+    def self.distribute_staged(
+      staging_dir : String,
+      path_a : String, entries_a : Array({String, Bool}),
+      path_b : String, entries_b : Array({String, Bool}),
+    )
+      staging_a = File.join(staging_dir, "a")
+      staging_b = File.join(staging_dir, "b")
+
+      entries_b.each do |(relative, is_dir)|
+        src = File.join(staging_b, relative)
+        dst = File.join(path_a, relative)
+        move_entry(src, dst, is_dir: is_dir) if File.exists?(src) || File.symlink?(src)
+      end
+
+      entries_a.each do |(relative, is_dir)|
+        src = File.join(staging_a, relative)
+        dst = File.join(path_b, relative)
+        move_entry(src, dst, is_dir: is_dir) if File.exists?(src) || File.symlink?(src)
+      end
+
+      FileUtils.rm_rf(staging_dir)
+    end
   end
 end

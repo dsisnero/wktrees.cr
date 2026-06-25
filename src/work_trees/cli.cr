@@ -2558,9 +2558,32 @@ module WorkTrees
 
       puts "◎ Swapping #{current_branch} ↔ #{target_branch}..."
 
+      # Resolve copy-ignored config and discover entries to protect
+      # gitignored files from `git checkout` overwrites.
+      staging_dir = File.join(repo.git_common_dir, "staging", "promote")
+      if Dir.exists?(staging_dir)
+        STDERR.puts "Found leftover staging directory from an interrupted promote: #{staging_dir}"
+        STDERR.puts "Files may need manual recovery. Remove it to retry."
+        exit 1
+      end
+
+      user_toml = File.exists?(Config.default_config_path) ? File.read(Config.default_config_path) : ""
+      project_toml = File.exists?(Config.project_config_path(repo.discovery_path)) ? File.read(Config.project_config_path(repo.discovery_path)) : ""
+      config = CopyIgnored.resolve(Config.parse_step_config(user_toml), Config.parse_step_config(project_toml))
+      worktree_paths = repo.list_worktrees.map { |worktree| File.expand_path(worktree.path) }
+
+      entries_current = CopyIgnored.list_ignored_entries(current_path)
+      entries_current = CopyIgnored.filter_entries(entries_current, current_path, worktree_paths, config.exclude, [] of String)
+      entries_target = CopyIgnored.list_ignored_entries(target_path)
+      entries_target = CopyIgnored.filter_entries(entries_target, target_path, worktree_paths, config.exclude, [] of String)
+
+      CopyIgnored.stage_ignored(current_path, entries_current, target_path, entries_target, staging_dir) unless entries_current.empty? && entries_target.empty?
+
       # Checkout target in current worktree, feature in target worktree
       Cmd.new("git").args(["checkout", target_branch]).current_dir(current_path).run!
       Cmd.new("git").args(["checkout", current_branch]).current_dir(target_path).run!
+
+      CopyIgnored.distribute_staged(staging_dir, current_path, entries_current, target_path, entries_target) unless entries_current.empty? && entries_target.empty?
 
       puts "✓ #{current_branch} is now in #{target_path}"
       puts "  #{target_branch} is now in #{current_path}"

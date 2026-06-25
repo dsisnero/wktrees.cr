@@ -170,6 +170,89 @@ module WorkTrees
       end
     end
 
+    describe "move_entry" do
+      it "moves a file within the same filesystem" do
+        with_tmp_dir do |dir|
+          src = File.join(dir, "a.txt")
+          dst = File.join(dir, "b.txt")
+          File.write(src, "content")
+          CopyIgnored.move_entry(src, dst, is_dir: false)
+          File.exists?(src).should be_false
+          File.exists?(dst).should be_true
+          File.read(dst).should eq("content")
+        end
+      end
+
+      it "moves a directory within the same filesystem" do
+        with_tmp_dir do |dir|
+          src = File.join(dir, "sub")
+          Dir.mkdir_p(src)
+          File.write(File.join(src, "x.txt"), "x")
+          dst = File.join(dir, "sub-dst")
+          CopyIgnored.move_entry(src, dst, is_dir: true)
+          File.exists?(src).should be_false
+          File.exists?(dst).should be_true
+          File.read(File.join(dst, "x.txt")).should eq("x")
+        end
+      end
+
+      it "creates parent directories for the destination" do
+        with_tmp_dir do |dir|
+          src = File.join(dir, "a.txt")
+          File.write(src, "deep")
+          dst = File.join(dir, "nested", "deep", "a.txt")
+          CopyIgnored.move_entry(src, dst, is_dir: false)
+          File.exists?(src).should be_false
+          File.read(dst).should eq("deep")
+        end
+      end
+    end
+
+    describe "stage_ignored + distribute_staged" do
+      it "round-trips gitignored entries safely" do
+        with_tmp_dir do |dir|
+          tree_a = File.join(dir, "tree-a")
+          tree_b = File.join(dir, "tree-b")
+          staging = File.join(dir, "staging")
+          Dir.mkdir_p(tree_a)
+          Dir.mkdir_p(tree_b)
+          Dir.mkdir_p(staging)
+
+          # Tree A: has a gitignored file and dir
+          File.write(File.join(tree_a, ".worktreeinclude"), ".env\nsecret/\n")
+          File.write(File.join(tree_a, ".env"), "prod")
+          Dir.mkdir_p(File.join(tree_a, "secret"))
+          File.write(File.join(tree_a, "secret", "key"), "abc123")
+          # Tree B: has a different gitignored file
+          File.write(File.join(tree_b, ".worktreeinclude"), "cache/\n")
+          Dir.mkdir_p(File.join(tree_b, "cache"))
+          File.write(File.join(tree_b, "cache", "index.html"), "<html>")
+
+          entries_a = [{"secret", true}, {".env", false}]
+          entries_b = [{"cache", true}]
+
+          CopyIgnored.stage_ignored(tree_a, entries_a, tree_b, entries_b, staging)
+          # Staging should have a/ and b/ subdirs
+          Dir.exists?(File.join(staging, "a")).should be_true
+          Dir.exists?(File.join(staging, "b")).should be_true
+          # Originals removed
+          File.exists?(File.join(tree_a, ".env")).should be_false
+          File.exists?(File.join(tree_a, "secret", "key")).should be_false
+          File.exists?(File.join(tree_b, "cache", "index.html")).should be_false
+
+          # Distribute: B's files go to A, A's files go to B (swap)
+          CopyIgnored.distribute_staged(staging, tree_a, entries_a, tree_b, entries_b)
+          # B's cache now in A
+          File.read(File.join(tree_a, "cache", "index.html")).should eq("<html>")
+          # A's secret/.env now in B
+          File.read(File.join(tree_b, ".env")).should eq("prod")
+          File.read(File.join(tree_b, "secret", "key")).should eq("abc123")
+          # Staging cleaned up
+          Dir.exists?(staging).should be_false
+        end
+      end
+    end
+
     describe "list_ignored_entries (integration)" do
       it "discovers gitignored files and directories via git ls-files" do
         with_tmp_dir do |dir|
