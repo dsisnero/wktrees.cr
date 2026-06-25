@@ -1,4 +1,5 @@
 require "../../spec_helper"
+require "file_utils"
 require "../../../src/work_trees/config/deprecation"
 
 module WorkTrees
@@ -334,6 +335,23 @@ module WorkTrees
         result = Config::Deprecation.check_and_migrate(content, user_config: true)
         result.has_deprecations?.should be_true
       end
+
+      it "applies the migration correctly for a round-trip write" do
+        # Simulate the config update flow: read, migrate, write, verify.
+        with_tmp_dir do |dir|
+          path = File.join(dir, "config.toml")
+          File.write(path, "[commit-generation]\ncommand = \"llm\"\n[select]\npager = \"less\"\n")
+          content = File.read(path)
+          result = Config::Deprecation.check_and_migrate(content, user_config: true)
+          result.has_deprecations?.should be_true
+          File.write(path, result.migrated_content)
+          migrated = File.read(path)
+          migrated.should contain("[commit.generation]")
+          migrated.should contain("[switch.picker]")
+          migrated.should_not contain("[commit-generation]")
+          migrated.should_not contain("[select]")
+        end
+      end
     end
 
     describe "compute_migrated_content" do
@@ -357,5 +375,15 @@ module WorkTrees
         migrated.should_not contain("{{ repo_root }}")
       end
     end
+  end
+end
+
+private def with_tmp_dir(&)
+  dir = File.tempname("wt-deprec")
+  Dir.mkdir_p(dir)
+  begin
+    yield dir
+  ensure
+    FileUtils.rm_rf(dir)
   end
 end

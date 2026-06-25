@@ -1859,6 +1859,8 @@ module WorkTrees
         end
       when "create"
         config_create(project)
+      when "update"
+        config_update(project)
       when "state"
         config_state(args[1..])
       else
@@ -1903,6 +1905,32 @@ module WorkTrees
       toml_content = "# WorkTrees configuration\nworktree-path = \"#{config.worktree_path_template}\"\n\n# Hooks — add commands at lifecycle events:\n# [pre-start]\n# deps = \"npm install\"\n# [post-start]\n# server = \"npm run dev\"\n# [post-remove]\n# cleanup = \"echo 'removed {{ branch }}'\"\n"
       File.write(config_path, toml_content)
       puts "✓ Created #{project ? "project " : ""}config at #{config_path}"
+    end
+
+    private def self.config_update(project = false)
+      if project
+        repo = Git::Repository.current
+        path = Config.project_config_path(repo.discovery_path)
+      else
+        path = Config.default_config_path
+      end
+
+      unless File.exists?(path)
+        STDERR.puts "No config file at #{path}"
+        exit 1
+      end
+
+      content = File.read(path)
+      result = Config::Deprecation.check_and_migrate(content, user_config: !project)
+
+      unless result.has_deprecations?
+        puts "No deprecated settings found in #{path}"
+        return
+      end
+
+      File.write(path, result.migrated_content)
+      puts "✓ Updated #{path}"
+      puts "  Applied: section renames, template variable replacements"
     end
 
     private def self.config_show_resolved
