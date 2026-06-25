@@ -116,5 +116,25 @@ module WorkTrees
         result.should eq("/tmp/feature")
       end
     end
+
+    describe "canonicalize_with_parents" do
+      it "returns an absolute path for an existing directory" do
+        existing = Path.home.to_s
+        canonical = PathUtil.canonicalize_with_parents(existing)
+        Path[canonical].absolute?.should be_true
+      end
+
+      it "returns as-is for a degenerate empty path" do
+        PathUtil.canonicalize_with_parents("").should eq("")
+      end
+
+      it "canonicalizes prefix and appends a nonexistent leaf" do
+        tmp = Path.home.to_s
+        nonexistent = File.join(tmp, "nonexistent-test-dir-12345")
+        canonical = PathUtil.canonicalize_with_parents(nonexistent)
+        Path[canonical].absolute?.should be_true
+        File.basename(canonical).should eq("nonexistent-test-dir-12345")
+      end
+    end
   end
 end
