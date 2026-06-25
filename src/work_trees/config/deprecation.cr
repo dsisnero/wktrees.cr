@@ -177,7 +177,7 @@ module WorkTrees
         result = content
 
         # Rename deprecated sections (multiline: ^ matches line start)
-        result = result.gsub(/^\[commit-generation\]/m, "[commit.generation]")
+        result = result.gsub(/^\[(projects\.".*"\.)?commit-generation\]/m, "[\\1commit.generation]")
         result = result.gsub(/^\[ci\]/m, "[forge]")
         result = result.gsub(/^\[select\]/m, "[switch.picker]")
 

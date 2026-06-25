@@ -289,6 +289,17 @@ module WorkTrees
         migrated.should_not contain("no-ff")
         migrated.should_not contain("[ci]")
       end
+
+      it "migrates [projects.\"id\".commit-generation] sections" do
+        content = <<-TOML
+        [projects."github.com/user/repo".commit-generation]
+        command = "llm -m haiku"
+        TOML
+        migrated = Config::Deprecation.migrate_content(content)
+        migrated.should contain("[projects.\"github.com/user/repo\".commit.generation]")
+        migrated.should contain("command = \"llm -m haiku\"")
+        migrated.should_not contain("[projects.\"github.com/user/repo\".commit-generation]")
+      end
     end
 
     describe "check_and_migrate" do
